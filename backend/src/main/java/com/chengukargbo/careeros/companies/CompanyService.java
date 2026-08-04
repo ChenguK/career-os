@@ -57,7 +57,9 @@ public class CompanyService {
         request.dreamCompany()
     );
 
-    return CompanyResponse.from(company);
+    Company updatedCompany = companyRepository.saveAndFlush(company);
+
+    return CompanyResponse.from(updatedCompany);
     }
 
     public void delete(Long id) {
