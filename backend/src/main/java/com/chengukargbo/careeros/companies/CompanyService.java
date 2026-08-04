@@ -39,6 +39,52 @@ public class CompanyService {
         return CompanyResponse.from(savedCompany);
     }
 
+    public CompanyResponse update(Long id, CompanyRequest request) {
+    Company company = findEntityById(id);
+
+    company.update(
+        request.name().trim(),
+        normalize(request.websiteUrl()),
+        normalize(request.careersUrl()),
+        normalize(request.industry()),
+        normalize(request.companyType()),
+        normalize(request.mission()),
+        normalize(request.products()),
+        normalize(request.techStack()),
+        normalize(request.remotePolicy()),
+        normalize(request.salaryNotes()),
+        normalize(request.generalNotes()),
+        request.dreamCompany()
+    );
+
+    return CompanyResponse.from(company);
+    }
+
+    public void delete(Long id) {
+        Company company = findEntityById(id);
+        companyRepository.delete(company);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CompanyResponse> search(String searchTerm) {
+        String normalizedSearch = normalize(searchTerm);
+
+        if (normalizedSearch == null) {
+            return findAll();
+        }
+
+        return companyRepository
+            .findByNameContainingIgnoreCaseOrderByNameAsc(normalizedSearch)
+            .stream()
+            .map(CompanyResponse::from)
+            .toList();
+    }
+
+    private Company findEntityById(Long id) {
+        return companyRepository.findById(id)
+            .orElseThrow(() -> new CompanyNotFoundException(id));
+    }
+
     @Transactional(readOnly = true)
     public List<CompanyResponse> findAll() {
         return companyRepository.findAll()
@@ -49,10 +95,7 @@ public class CompanyService {
 
     @Transactional(readOnly = true)
     public CompanyResponse findById(Long id) {
-        Company company = companyRepository.findById(id)
-            .orElseThrow(() -> new CompanyNotFoundException(id));
-
-        return CompanyResponse.from(company);
+        return CompanyResponse.from(findEntityById(id));
     }
 
     private String normalize(String value) {

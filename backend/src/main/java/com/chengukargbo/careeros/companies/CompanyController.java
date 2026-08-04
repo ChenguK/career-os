@@ -4,7 +4,12 @@ import java.net.URI;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -43,12 +48,26 @@ public class CompanyController {
     }
 
     @GetMapping
-    public List<CompanyResponse> findAll() {
-        return companyService.findAll();
+    public List<CompanyResponse> findAll(
+        @RequestParam(required = false) String search
+    ) {
+        return companyService.search(search);
     }
-
     @GetMapping("/{id}")
     public CompanyResponse findById(@PathVariable Long id) {
         return companyService.findById(id);
+    }
+    @PutMapping("/{id}")
+    public CompanyResponse update(
+        @PathVariable Long id,
+        @Valid @RequestBody CompanyRequest request
+    ) {
+        return companyService.update(id, request);
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Long id) {
+        companyService.delete(id);
     }
 }

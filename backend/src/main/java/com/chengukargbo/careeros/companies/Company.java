@@ -61,6 +61,34 @@ public class Company {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
+    public void update(
+    String name,
+    String websiteUrl,
+    String careersUrl,
+    String industry,
+    String companyType,
+    String mission,
+    String products,
+    String techStack,
+    String remotePolicy,
+    String salaryNotes,
+    String generalNotes,
+    boolean dreamCompany
+) {
+    this.name = name;
+    this.websiteUrl = websiteUrl;
+    this.careersUrl = careersUrl;
+    this.industry = industry;
+    this.companyType = companyType;
+    this.mission = mission;
+    this.products = products;
+    this.techStack = techStack;
+    this.remotePolicy = remotePolicy;
+    this.salaryNotes = salaryNotes;
+    this.generalNotes = generalNotes;
+    this.dreamCompany = dreamCompany;
+}
+
     @PrePersist
     void onCreate() {
     OffsetDateTime now = OffsetDateTime.now();
