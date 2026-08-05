@@ -28,7 +28,13 @@ describe("CompanyForm", () => {
     const user = userEvent.setup();
     const onCreate = vi.fn().mockResolvedValue(createdCompany);
 
-    render(<CompanyForm onCreate={onCreate} />);
+    render(
+        <CompanyForm
+            heading="Add company"
+            submitLabel="Add company"
+            onSubmit={onCreate}
+        />,
+);
 
     await user.type(
       screen.getByLabelText("Company name"),
@@ -63,7 +69,13 @@ describe("CompanyForm", () => {
     const user = userEvent.setup();
     const onCreate = vi.fn().mockResolvedValue(createdCompany);
 
-    render(<CompanyForm onCreate={onCreate} />);
+    render(
+        <CompanyForm
+            heading="Add company"
+            submitLabel="Add company"
+            onSubmit={onCreate}
+        />,
+    );
 
     const nameInput = screen.getByLabelText("Company name");
 

@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 
 import CompanyList from "./CompanyList";
 import type { Company } from "../types/company";
@@ -24,7 +25,14 @@ const github: Company = {
 
 describe("CompanyList", () => {
   it("displays company information", () => {
-    render(<CompanyList companies={[github]} />);
+    render(
+      <CompanyList
+        companies={[github]}
+        deletingId={null}
+        onEdit={vi.fn()}
+        onDelete={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
 
     expect(
       screen.getByRole("heading", { name: "GitHub" }),
@@ -51,10 +59,57 @@ describe("CompanyList", () => {
   });
 
   it("displays an empty state", () => {
-    render(<CompanyList companies={[]} />);
+    render(
+      <CompanyList
+        companies={[]}
+        deletingId={null}
+        onEdit={vi.fn()}
+        onDelete={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
 
     expect(
       screen.getByText("No companies found."),
     ).toBeInTheDocument();
+  });
+
+  it("requests editing for a company", async () => {
+    const user = userEvent.setup();
+    const onEdit = vi.fn();
+
+    render(
+      <CompanyList
+        companies={[github]}
+        deletingId={null}
+        onEdit={onEdit}
+        onDelete={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Edit" }),
+    );
+
+    expect(onEdit).toHaveBeenCalledWith(github);
+  });
+
+  it("requests deletion for a company", async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <CompanyList
+        companies={[github]}
+        deletingId={null}
+        onEdit={vi.fn()}
+        onDelete={onDelete}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Delete" }),
+    );
+
+    expect(onDelete).toHaveBeenCalledWith(github);
   });
 });

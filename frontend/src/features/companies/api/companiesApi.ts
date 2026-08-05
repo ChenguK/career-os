@@ -51,3 +51,32 @@ export async function createCompany(
 
   return response.json() as Promise<Company>;
 }
+
+export async function updateCompany(
+  id: number,
+  input: CompanyInput,
+): Promise<Company> {
+  const response = await fetch(`/api/companies/${id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseError(response));
+  }
+
+  return response.json() as Promise<Company>;
+}
+
+export async function deleteCompany(id: number): Promise<void> {
+  const response = await fetch(`/api/companies/${id}`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseError(response));
+  }
+}

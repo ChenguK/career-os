@@ -2,10 +2,16 @@ import type { Company } from "../types/company";
 
 interface CompanyListProps {
   companies: Company[];
+  deletingId: number | null;
+  onEdit: (company: Company) => void;
+  onDelete: (company: Company) => Promise<void>;
 }
 
 export default function CompanyList({
   companies,
+  deletingId,
+  onEdit,
+  onDelete,
 }: CompanyListProps) {
   if (companies.length === 0) {
     return <p>No companies found.</p>;
@@ -63,6 +69,25 @@ export default function CompanyList({
                   Careers
                 </a>
               )}
+            </div>
+
+            <div className="company-card__actions">
+              <button
+                type="button"
+                onClick={() => onEdit(company)}
+              >
+                Edit
+              </button>
+
+              <button
+                type="button"
+                disabled={deletingId === company.id}
+                onClick={() => void onDelete(company)}
+              >
+                {deletingId === company.id
+                  ? "Deleting..."
+                  : "Delete"}
+              </button>
             </div>
           </article>
         ))}

@@ -8,30 +8,24 @@ import type {
   Company,
   CompanyInput,
 } from "../types/company";
+import { emptyCompanyInput } from "../types/companyFormDefaults";
 
 interface CompanyFormProps {
-  onCreate: (input: CompanyInput) => Promise<Company>;
+  heading: string;
+  submitLabel: string;
+  initialValues?: CompanyInput;
+  onSubmit: (input: CompanyInput) => Promise<Company>;
+  onCancel?: () => void;
 }
 
-const initialForm: CompanyInput = {
-  name: "",
-  websiteUrl: "",
-  careersUrl: "",
-  industry: "",
-  companyType: "",
-  mission: "",
-  products: "",
-  techStack: "",
-  remotePolicy: "",
-  salaryNotes: "",
-  generalNotes: "",
-  dreamCompany: false,
-};
-
 export default function CompanyForm({
-  onCreate,
+  heading,
+  submitLabel,
+  initialValues = emptyCompanyInput,
+  onSubmit,
+  onCancel,
 }: CompanyFormProps) {
-  const [form, setForm] = useState<CompanyInput>(initialForm);
+  const [form, setForm] = useState<CompanyInput>(initialValues);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -58,13 +52,16 @@ export default function CompanyForm({
     setIsSubmitting(true);
 
     try {
-      await onCreate(form);
-      setForm(initialForm);
+      await onSubmit(form);
+
+      if (!initialValues.name) {
+        setForm(emptyCompanyInput);
+      }
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
           ? caughtError.message
-          : "The company could not be created.",
+          : "The company could not be saved.",
       );
     } finally {
       setIsSubmitting(false);
@@ -72,8 +69,8 @@ export default function CompanyForm({
   }
 
   return (
-    <section aria-labelledby="add-company-heading">
-      <h2 id="add-company-heading">Add company</h2>
+    <section aria-labelledby={`${heading}-heading`}>
+      <h2 id={`${heading}-heading`}>{heading}</h2>
 
       <form className="company-form" onSubmit={handleSubmit}>
         <label>
@@ -193,9 +190,21 @@ export default function CompanyForm({
 
         {error && <p role="alert">{error}</p>}
 
-        <button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Saving..." : "Add company"}
-        </button>
+        <div className="company-form__actions">
+          <button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "Saving..." : submitLabel}
+          </button>
+
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </button>
+          )}
+        </div>
       </form>
     </section>
   );
