@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.chengukargbo.careeros.companies.CompanyNotFoundException;
+import com.chengukargbo.careeros.jobs.JobOpportunityNotFoundException;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -18,6 +19,17 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(CompanyNotFoundException.class)
     public ResponseEntity<ApiError> handleCompanyNotFound(
         CompanyNotFoundException exception,
+        HttpServletRequest request
+    ) {
+        return buildError(
+            HttpStatus.NOT_FOUND,
+            exception.getMessage(),
+            request.getRequestURI()
+        );
+    }
+    @ExceptionHandler(JobOpportunityNotFoundException.class)
+    public ResponseEntity<ApiError> handleJobOpportunityNotFound(
+        JobOpportunityNotFoundException exception,
         HttpServletRequest request
     ) {
         return buildError(
@@ -42,6 +54,18 @@ public class GlobalExceptionHandler {
         return buildError(
             HttpStatus.BAD_REQUEST,
             message,
+            request.getRequestURI()
+        );
+    }
+
+    @ExceptionHandler(BusinessValidationException.class)
+    public ResponseEntity<ApiError> handleBusinessValidation(
+        BusinessValidationException exception,
+        HttpServletRequest request
+    ) {
+        return buildError(
+            HttpStatus.BAD_REQUEST,
+            exception.getMessage(),
             request.getRequestURI()
         );
     }
