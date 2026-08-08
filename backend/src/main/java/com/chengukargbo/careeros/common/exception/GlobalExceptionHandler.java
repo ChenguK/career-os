@@ -8,6 +8,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import com.chengukargbo.careeros.applications.ApplicationNotFoundException;
 import com.chengukargbo.careeros.companies.CompanyNotFoundException;
 import com.chengukargbo.careeros.jobs.JobOpportunityNotFoundException;
 
@@ -27,9 +28,22 @@ public class GlobalExceptionHandler {
             request.getRequestURI()
         );
     }
+
     @ExceptionHandler(JobOpportunityNotFoundException.class)
     public ResponseEntity<ApiError> handleJobOpportunityNotFound(
         JobOpportunityNotFoundException exception,
+        HttpServletRequest request
+    ) {
+        return buildError(
+            HttpStatus.NOT_FOUND,
+            exception.getMessage(),
+            request.getRequestURI()
+        );
+    }
+
+    @ExceptionHandler(ApplicationNotFoundException.class)
+    public ResponseEntity<ApiError> handleApplicationNotFound(
+        ApplicationNotFoundException exception,
         HttpServletRequest request
     ) {
         return buildError(
