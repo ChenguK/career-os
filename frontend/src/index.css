@@ -235,3 +235,94 @@ button {
 .job-card__details {
   margin: 1rem 0;
 }
+
+.application-form {
+  display: grid;
+  gap: 1rem;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  background: white;
+  border: 1px solid #d9e2ec;
+  border-radius: 0.75rem;
+}
+
+.application-form label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.application-form input,
+.application-form textarea,
+.application-form select {
+  width: 100%;
+  padding: 0.7rem;
+  border: 1px solid #bcccdc;
+  border-radius: 0.4rem;
+}
+
+.application-form textarea {
+  min-height: 6rem;
+  resize: vertical;
+}
+
+.application-form__row {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(220px, 1fr)
+  );
+}
+
+.application-form__actions,
+.application-card__actions,
+.application-card__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.application-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.application-card {
+  padding: 1.25rem;
+  background: white;
+  border: 1px solid #d9e2ec;
+  border-radius: 0.75rem;
+}
+
+.application-card__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.application-card__heading h3 {
+  margin: 0;
+}
+
+.application-card__status {
+  white-space: nowrap;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+}
+
+.application-card__details {
+  margin: 1rem 0;
+}
+
+.application-card__links,
+.application-card__actions {
+  margin-top: 1rem;
+}
+
+.applications-page {
+  width: min(1100px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 2rem 0 4rem;
+}
