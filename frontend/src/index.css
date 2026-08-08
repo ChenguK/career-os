@@ -147,11 +147,17 @@ button {
   border-bottom: 1px solid #d9e2ec;
 }
 
-.app-navigation button {
+.app-navigation a {
   padding: 0.6rem 1rem;
+  color: inherit;
+  text-decoration: none;
 }
 
-.app-navigation button[aria-current="page"] {
+.app-navigation a:hover {
+  text-decoration: underline;
+}
+
+.app-navigation a.active {
   font-weight: 700;
   text-decoration: underline;
 }
@@ -322,6 +328,12 @@ button {
 }
 
 .applications-page {
+  width: min(1100px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 2rem 0 4rem;
+}
+
+.not-found-page {
   width: min(1100px, calc(100% - 2rem));
   margin: 0 auto;
   padding: 2rem 0 4rem;
