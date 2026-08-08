@@ -270,7 +270,7 @@ export default function JobForm({
               type="number"
               min="1"
               max="5"
-              value={form.priority}
+              value={form.priority ?? ""}
               onChange={handleNumberChange}
             />
           </label>

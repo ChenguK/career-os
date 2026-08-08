@@ -14,6 +14,7 @@ import {
 import CompanyForm from "../components/CompanyForm";
 import { emptyCompanyInput } from "../types/companyFormDefaults";
 import CompanyList from "../components/CompanyList";
+import { useDebouncedValue } from "../../../shared/hooks/useDebouncedValue";
 import type {
   Company,
   CompanyInput,
@@ -48,6 +49,8 @@ export default function CompaniesPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
+  const debouncedSearch = useDebouncedValue(search, 300);
+
   const loadCompanies = useCallback(async (searchTerm: string) => {
     setIsLoading(true);
     setError("");
@@ -67,12 +70,39 @@ export default function CompaniesPage() {
   }, []);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      void loadCompanies(search);
-    }, 300);
+  let isCancelled = false;
 
-    return () => window.clearTimeout(timeoutId);
-  }, [loadCompanies, search]);
+  async function fetchCompanies() {
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const results = await getCompanies(debouncedSearch);
+
+      if (!isCancelled) {
+        setCompanies(results);
+      }
+    } catch (caughtError) {
+      if (!isCancelled) {
+        setError(
+          caughtError instanceof Error
+            ? caughtError.message
+            : "Companies could not be loaded.",
+        );
+      }
+    } finally {
+      if (!isCancelled) {
+        setIsLoading(false);
+      }
+    }
+  }
+
+  void fetchCompanies();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [debouncedSearch]);
 
   async function handleCreate(
     input: CompanyInput,

@@ -16,6 +16,7 @@ import {
 import { emptyJobInput } from "../types/jobFormDefaults";
 import JobForm from "../components/JobForm";
 import JobList from "../components/JobList";
+import { useDebouncedValue } from "../../../shared/hooks/useDebouncedValue";
 import type {
   JobOpportunity,
   JobOpportunityInput,
@@ -25,6 +26,7 @@ export default function JobsPage() {
   const [jobs, setJobs] = useState<JobOpportunity[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -58,12 +60,39 @@ export default function JobsPage() {
   }, []);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      void loadJobs(search);
-    }, 300);
+  let isCancelled = false;
 
-    return () => window.clearTimeout(timeoutId);
-  }, [loadJobs, search]);
+  async function fetchJobs() {
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const results = await getJobs(debouncedSearch);
+
+      if (!isCancelled) {
+        setJobs(results);
+      }
+    } catch (caughtError) {
+      if (!isCancelled) {
+        setError(
+          caughtError instanceof Error
+            ? caughtError.message
+            : "Jobs could not be loaded.",
+        );
+      }
+    } finally {
+      if (!isCancelled) {
+        setIsLoading(false);
+      }
+    }
+  }
+
+  void fetchJobs();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [debouncedSearch]);
 
   async function handleCreate(
     input: JobOpportunityInput,
