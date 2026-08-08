@@ -169,6 +169,20 @@ export default function DashboardPage() {
     [jobs],
   );
 
+  const unappliedHighPriorityJobs = useMemo(() => {
+  const appliedJobIds = new Set(
+    applications.map(
+      (application) => application.jobOpportunityId,
+    ),
+  );
+
+  return jobs.filter(
+    (job) =>
+      (job.priority === 1 || job.priority === 2) &&
+      !appliedJobIds.has(job.id),
+    );
+    }, [applications, jobs]);
+
   const dreamCompanies = useMemo(
     () =>
       companies.filter(
@@ -176,6 +190,15 @@ export default function DashboardPage() {
       ).length,
     [companies],
   );
+
+  const preparingApplications = useMemo(
+  () =>
+    applications.filter(
+      (application) =>
+        application.status === "PREPARING",
+    ),
+    [applications],
+    );
 
   const followUpsDue = useMemo(
     () =>
@@ -252,6 +275,13 @@ export default function DashboardPage() {
     );
   }, [applications]);
 
+  const actionCount =
+        followUpsDue.length +
+        preparingApplications.length +
+        upcomingInterviews.length +
+        unappliedHighPriorityJobs.length;
+
+
   const statusCounts = useMemo(() => {
     const counts = Object.fromEntries(
       Object.keys(statusLabels).map(
@@ -327,6 +357,95 @@ export default function DashboardPage() {
           <strong>{followUpsDue.length}</strong>
         </article>
       </section>
+
+      <section aria-labelledby="todays-actions-heading">
+  <h2 id="todays-actions-heading">
+    Today's Actions
+  </h2>
+
+  <p>
+    {actionCount === 0
+      ? "You're caught up."
+      : `${actionCount} action${
+          actionCount === 1 ? "" : "s"
+        } need attention.`}
+  </p>
+
+  <div className="dashboard-list">
+    {followUpsDue.map((application) => (
+      <article
+        className="dashboard-item"
+        key={`follow-up-${application.id}`}
+      >
+        <h3>Follow up</h3>
+
+        <p>{application.positionTitle}</p>
+
+        {application.companyName && (
+          <p>{application.companyName}</p>
+        )}
+
+        <p>
+          Due{" "}
+          {formatDate(
+            application.followUpDate!,
+          )}
+        </p>
+      </article>
+    ))}
+
+    {preparingApplications.map((application) => (
+      <article
+        className="dashboard-item"
+        key={`preparing-${application.id}`}
+      >
+        <h3>Finish application</h3>
+
+        <p>{application.positionTitle}</p>
+
+        {application.companyName && (
+          <p>{application.companyName}</p>
+        )}
+      </article>
+    ))}
+
+    {upcomingInterviews.map((interview) => (
+      <article
+        className="dashboard-item"
+        key={`interview-${interview.applicationId}-${interview.type}`}
+      >
+        <h3>Prepare for {interview.type}</h3>
+
+        <p>{interview.positionTitle}</p>
+
+        {interview.companyName && (
+          <p>{interview.companyName}</p>
+        )}
+
+        <p>
+          {formatDateTime(interview.dateTime)}
+        </p>
+      </article>
+    ))}
+
+    {unappliedHighPriorityJobs.map((job) => (
+      <article
+        className="dashboard-item"
+        key={`job-${job.id}`}
+      >
+        <h3>Apply to priority job</h3>
+
+        <p>{job.positionTitle}</p>
+
+        {job.companyName && (
+          <p>{job.companyName}</p>
+        )}
+
+        <p>Priority {job.priority}</p>
+      </article>
+        ))}
+    </div>
+    </section>
 
       <section aria-labelledby="needs-attention-heading">
         <h2 id="needs-attention-heading">

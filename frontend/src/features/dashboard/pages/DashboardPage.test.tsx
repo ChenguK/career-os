@@ -275,32 +275,85 @@ describe("DashboardPage", () => {
     expect(
       await screen.findByRole("heading", {
         name: "Needs Attention",
-      }),
-    ).toBeInTheDocument();
+        }),
+        ).toBeInTheDocument();
 
-    expect(
-      screen.getByRole("heading", {
-        name: "Software Engineer",
-      }),
-    ).toBeInTheDocument();
+        expect(
+        screen.getByRole("heading", {
+            name: "Software Engineer",
+        }),
+        ).toBeInTheDocument();
 
-    expect(
-      screen.queryByRole("heading", {
-        name: "Closed Role",
-      }),
-    ).not.toBeInTheDocument();
-  });
+        expect(
+        screen.queryByRole("heading", {
+            name: "Closed Role",
+        }),
+        ).not.toBeInTheDocument();
+    });
 
-  it("shows upcoming interviews", async () => {
+    it("shows upcoming interviews", async () => {
+        mockedGetApplications.mockResolvedValue([
+        {
+            id: 1,
+            jobOpportunityId: 1,
+            positionTitle: "Software Engineer",
+            companyId: 1,
+            companyName: "GitHub",
+            status: "PHONE_SCREEN",
+            resumeVersion: null,
+            coverLetterNeeded: false,
+            portfolioLink: null,
+            githubLink: null,
+            projectsToHighlight: null,
+            skillsToEmphasize: null,
+            interviewTopics: null,
+            recruiterName: null,
+            recruiterEmail: null,
+            applicationDate: "2026-08-01",
+            followUpDate: null,
+            phoneScreenAt: "2026-08-12T14:00:00Z",
+            interviewOneAt: null,
+            interviewTwoAt: null,
+            offerAt: null,
+            rejectedAt: null,
+            notes: null,
+            createdAt: "2026-08-01T12:00:00Z",
+            updatedAt: "2026-08-01T12:00:00Z",
+        },
+        ]);
+
+        mockedGetJobs.mockResolvedValue([]);
+        mockedGetCompanies.mockResolvedValue([]);
+
+        render(<DashboardPage />);
+
+        expect(
+        await screen.findByRole("heading", {
+            name: "Upcoming Interviews",
+        }),
+        ).toBeInTheDocument();
+
+        expect(
+        screen.getByRole("heading", {
+            name: "Software Engineer",
+        }),
+        ).toBeInTheDocument();
+
+        expect(
+        screen.getByText(/Phone Screen:/),
+        ).toBeInTheDocument();
+    });
+
+    it("shows today's prioritized actions", async () => {
     mockedGetApplications.mockResolvedValue([
-      {
+        {
         id: 1,
         jobOpportunityId: 1,
         positionTitle: "Software Engineer",
         companyId: 1,
         companyName: "GitHub",
         status: "PHONE_SCREEN",
-        resumeVersion: null,
+        resumeVersion: "Software Engineering",
         coverLetterNeeded: false,
         portfolioLink: null,
         githubLink: null,
@@ -310,7 +363,7 @@ describe("DashboardPage", () => {
         recruiterName: null,
         recruiterEmail: null,
         applicationDate: "2026-08-01",
-        followUpDate: null,
+        followUpDate: "2026-08-08",
         phoneScreenAt: "2026-08-12T14:00:00Z",
         interviewOneAt: null,
         interviewTwoAt: null,
@@ -319,30 +372,149 @@ describe("DashboardPage", () => {
         notes: null,
         createdAt: "2026-08-01T12:00:00Z",
         updatedAt: "2026-08-01T12:00:00Z",
-      },
+        },
+        {
+        id: 2,
+        jobOpportunityId: 2,
+        positionTitle: "Support Engineer",
+        companyId: 2,
+        companyName: "PostHog",
+        status: "PREPARING",
+        resumeVersion: "Technical Support",
+        coverLetterNeeded: true,
+        portfolioLink: null,
+        githubLink: null,
+        projectsToHighlight: null,
+        skillsToEmphasize: null,
+        interviewTopics: null,
+        recruiterName: null,
+        recruiterEmail: null,
+        applicationDate: null,
+        followUpDate: null,
+        phoneScreenAt: null,
+        interviewOneAt: null,
+        interviewTwoAt: null,
+        offerAt: null,
+        rejectedAt: null,
+        notes: null,
+        createdAt: "2026-08-02T12:00:00Z",
+        updatedAt: "2026-08-02T12:00:00Z",
+        },
     ]);
 
-    mockedGetJobs.mockResolvedValue([]);
+    mockedGetJobs.mockResolvedValue([
+        {
+        id: 1,
+        companyId: 1,
+        companyName: "GitHub",
+        positionTitle: "Software Engineer",
+        department: null,
+        location: "Remote",
+        remoteType: "REMOTE",
+        employmentType: "Full-time",
+        salaryMin: null,
+        salaryMax: null,
+        salaryCurrency: "USD",
+        salaryNotes: null,
+        applicationUrl: null,
+        source: null,
+        datePosted: null,
+        closingDate: null,
+        priority: 1,
+        matchScore: 9,
+        jobDescription: null,
+        notes: null,
+        createdAt: "2026-08-01T12:00:00Z",
+        updatedAt: "2026-08-01T12:00:00Z",
+        },
+        {
+        id: 2,
+        companyId: 2,
+        companyName: "PostHog",
+        positionTitle: "Support Engineer",
+        department: null,
+        location: "Remote",
+        remoteType: "REMOTE",
+        employmentType: "Full-time",
+        salaryMin: null,
+        salaryMax: null,
+        salaryCurrency: "USD",
+        salaryNotes: null,
+        applicationUrl: null,
+        source: null,
+        datePosted: null,
+        closingDate: null,
+        priority: 2,
+        matchScore: 8.5,
+        jobDescription: null,
+        notes: null,
+        createdAt: "2026-08-02T12:00:00Z",
+        updatedAt: "2026-08-02T12:00:00Z",
+        },
+        {
+        id: 3,
+        companyId: 3,
+        companyName: "Mozilla",
+        positionTitle: "Frontend Developer",
+        department: null,
+        location: "Remote",
+        remoteType: "REMOTE",
+        employmentType: "Full-time",
+        salaryMin: null,
+        salaryMax: null,
+        salaryCurrency: "USD",
+        salaryNotes: null,
+        applicationUrl: null,
+        source: null,
+        datePosted: null,
+        closingDate: null,
+        priority: 1,
+        matchScore: 9.2,
+        jobDescription: null,
+        notes: null,
+        createdAt: "2026-08-03T12:00:00Z",
+        updatedAt: "2026-08-03T12:00:00Z",
+        },
+    ]);
+
     mockedGetCompanies.mockResolvedValue([]);
 
     render(<DashboardPage />);
 
     expect(
-      await screen.findByRole("heading", {
-        name: "Upcoming Interviews",
-      }),
+        await screen.findByRole("heading", {
+        name: "Today's Actions",
+        }),
     ).toBeInTheDocument();
 
     expect(
-      screen.getByRole("heading", {
-        name: "Software Engineer",
-      }),
+        screen.getByRole("heading", {
+        name: "Follow up",
+        }),
     ).toBeInTheDocument();
 
     expect(
-      screen.getByText(/Phone Screen:/),
+        screen.getByRole("heading", {
+        name: "Finish application",
+        }),
     ).toBeInTheDocument();
-  });
+
+    expect(
+        screen.getByRole("heading", {
+        name: "Prepare for Phone Screen",
+        }),
+    ).toBeInTheDocument();
+
+    expect(
+        screen.getByRole("heading", {
+        name: "Apply to priority job",
+        }),
+    ).toBeInTheDocument();
+
+    expect(
+        screen.getByText("4 actions need attention."),
+    ).toBeInTheDocument();
+    });
 
   it("shows dashboard empty states", async () => {
     mockedGetApplications.mockResolvedValue([]);
