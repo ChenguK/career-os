@@ -6,6 +6,7 @@ import {
 
 import AppLayout from "./app/components/AppLayout";
 import NotFoundPage from "./app/pages/NotFoundPage";
+import DashboardPage from "./features/dashboard/pages/DashboardPage";
 import ApplicationsPage from "./features/applications/pages/ApplicationsPage";
 import CompaniesPage from "./features/companies/pages/CompaniesPage";
 import JobsPage from "./features/jobs/pages/JobsPage";
@@ -18,10 +19,15 @@ export default function App() {
           index
           element={
             <Navigate
-              to="/applications"
+              to="/dashboard"
               replace
             />
           }
+        />
+
+        <Route
+          path="dashboard"
+          element={<DashboardPage />}
         />
 
         <Route

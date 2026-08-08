@@ -11,6 +11,15 @@ export default function AppLayout() {
         aria-label="Main navigation"
       >
         <NavLink
+            to="/dashboard"
+            className={({ isActive }) =>
+                isActive ? "active" : undefined
+            }
+            >
+            Dashboard
+        </NavLink>
+
+        <NavLink
           to="/applications"
           className={({ isActive }) =>
             isActive ? "active" : undefined

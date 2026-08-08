@@ -9,9 +9,9 @@ export default function NotFoundPage() {
         The Career OS page you requested does not exist.
       </p>
 
-      <Link to="/applications">
-        Return to Applications
-      </Link>
+      <Link to="/dashboard">
+        Return to Dashboard
+    </Link>
     </main>
   );
 }
