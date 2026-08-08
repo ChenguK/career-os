@@ -1,82 +1,46 @@
+import { apiRequest } from "../../../shared/api/apiClient";
 import type {
   Company,
   CompanyInput,
 } from "../types/company";
 
-interface ApiError {
-  status?: number;
-  error?: string;
-  message?: string;
-}
-
-async function parseError(response: Response): Promise<string> {
-  try {
-    const error = (await response.json()) as ApiError;
-    return error.message ?? "The request could not be completed.";
-  } catch {
-    return "The request could not be completed.";
-  }
-}
-
-export async function getCompanies(
+export function getCompanies(
   search = "",
 ): Promise<Company[]> {
   const query = search.trim()
     ? `?search=${encodeURIComponent(search.trim())}`
     : "";
 
-  const response = await fetch(`/api/companies${query}`);
-
-  if (!response.ok) {
-    throw new Error(await parseError(response));
-  }
-
-  return response.json() as Promise<Company[]>;
+  return apiRequest<Company[]>(`/api/companies${query}`);
 }
 
-export async function createCompany(
+export function createCompany(
   input: CompanyInput,
 ): Promise<Company> {
-  const response = await fetch("/api/companies", {
+  return apiRequest<Company>("/api/companies", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(input),
   });
-
-  if (!response.ok) {
-    throw new Error(await parseError(response));
-  }
-
-  return response.json() as Promise<Company>;
 }
 
-export async function updateCompany(
+export function updateCompany(
   id: number,
   input: CompanyInput,
 ): Promise<Company> {
-  const response = await fetch(`/api/companies/${id}`, {
+  return apiRequest<Company>(`/api/companies/${id}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(input),
   });
-
-  if (!response.ok) {
-    throw new Error(await parseError(response));
-  }
-
-  return response.json() as Promise<Company>;
 }
 
-export async function deleteCompany(id: number): Promise<void> {
-  const response = await fetch(`/api/companies/${id}`, {
+export function deleteCompany(id: number): Promise<void> {
+  return apiRequest<void>(`/api/companies/${id}`, {
     method: "DELETE",
   });
-
-  if (!response.ok) {
-    throw new Error(await parseError(response));
-  }
 }
