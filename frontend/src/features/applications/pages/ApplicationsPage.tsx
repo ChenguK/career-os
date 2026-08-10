@@ -10,16 +10,26 @@ import type { JobOpportunity } from "../../jobs/types/job";
 import {
   createApplication,
   deleteApplication,
+  getApplicationTracker,
   getApplications,
   updateApplication,
 } from "../api/applicationsApi";
 import ApplicationForm from "../components/ApplicationForm";
 import ApplicationList from "../components/ApplicationList";
+import ImportJobsPanel from "../components/ImportJobsPanel";
 import type {
   Application,
   ApplicationInput,
+  ApplicationStatus,
 } from "../types/application";
+import type { ApplicationTrackerRow } from "../types/applicationTracker";
 import { emptyApplicationInput } from "../types/applicationFormDefaults";
+import { useDebouncedValue } from "../../../shared/hooks/useDebouncedValue";
+import type {
+  ApplicationTrackerQuery,
+  ApplicationTrackerSort,
+} from "../types/applicationTracker";
+import type { RemoteType } from "../../jobs/types/job";
 
 function toLocalDateTimeInput(
   value: string | null,
@@ -81,16 +91,37 @@ export default function ApplicationsPage() {
   >([]);
 
   const [jobs, setJobs] = useState<JobOpportunity[]>([]);
+  const [trackerRows, setTrackerRows] = useState<
+    ApplicationTrackerRow[]
+  >([]);
+  const [trackerPage, setTrackerPage] = useState(0);
+  const [trackerTotalRows, setTrackerTotalRows] = useState(0);
+  const [trackerTotalPages, setTrackerTotalPages] = useState(0);
+
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState("");
+  const [remoteTypeFilter, setRemoteTypeFilter] = useState("");
+  const [companyFilter, setCompanyFilter] = useState("");
+  const [sortField, setSortField] =
+    useState<ApplicationTrackerSort>("priority");
+  const [sortDirection, setSortDirection] =
+    useState<"asc" | "desc">("asc");
 
   const [editingApplication, setEditingApplication] =
     useState<Application | null>(null);
+  const [creatingForJobId, setCreatingForJobId] =
+    useState<number | null>(null);
 
   const [deletingId, setDeletingId] =
     useState<number | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isTrackerLoading, setIsTrackerLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [isImportOpen, setIsImportOpen] = useState(false);
 
   const loadApplications = useCallback(async () => {
     setIsLoading(true);
@@ -120,6 +151,27 @@ export default function ApplicationsPage() {
           ? caughtError.message
           : "Jobs could not be loaded.",
       );
+    }
+  }, []);
+
+  const loadTracker = useCallback(async (
+    query: ApplicationTrackerQuery,
+  ) => {
+    setIsTrackerLoading(true);
+    try {
+      const result = await getApplicationTracker(query);
+      setTrackerRows(result.content);
+      setTrackerPage(result.page);
+      setTrackerTotalRows(result.totalRows);
+      setTrackerTotalPages(result.totalPages);
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Tracker data could not be loaded.",
+      );
+    } finally {
+      setIsTrackerLoading(false);
     }
   }, []);
 
@@ -175,6 +227,114 @@ export default function ApplicationsPage() {
     [applications, jobs],
   );
 
+  const companyOptions = useMemo(() => {
+    const companies = new Map<number, string>();
+
+    jobs.forEach((job) => {
+      if (job.companyId !== null && job.companyName) {
+        companies.set(job.companyId, job.companyName);
+      }
+    });
+
+    return [...companies.entries()].sort((first, second) =>
+      first[1].localeCompare(second[1]),
+    );
+  }, [jobs]);
+
+  const trackerQuery = useMemo<ApplicationTrackerQuery>(
+    () => ({
+      search: debouncedSearch,
+      statuses: statusFilter
+        ? [statusFilter as ApplicationStatus]
+        : undefined,
+      priorities: priorityFilter
+        ? [Number(priorityFilter)]
+        : undefined,
+      remoteTypes: remoteTypeFilter
+        ? [remoteTypeFilter as RemoteType]
+        : undefined,
+      companyId: companyFilter
+        ? Number(companyFilter)
+        : undefined,
+      sort: sortField,
+      direction: sortDirection,
+      page: trackerPage,
+      size: 25,
+    }),
+    [
+      companyFilter,
+      debouncedSearch,
+      priorityFilter,
+      remoteTypeFilter,
+      sortDirection,
+      sortField,
+      statusFilter,
+      trackerPage,
+    ],
+  );
+
+  const hasActiveCriteria = Boolean(
+    search.trim() ||
+    statusFilter ||
+    priorityFilter ||
+    remoteTypeFilter ||
+    companyFilter ||
+    sortField !== "priority" ||
+    sortDirection !== "asc",
+  );
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function loadTrackerPage() {
+      setIsTrackerLoading(true);
+
+      try {
+        const result = await getApplicationTracker(trackerQuery);
+
+        if (!isCancelled) {
+          setTrackerRows(result.content);
+          setTrackerPage(result.page);
+          setTrackerTotalRows(result.totalRows);
+          setTrackerTotalPages(result.totalPages);
+        }
+      } catch (caughtError) {
+        if (!isCancelled) {
+          setError(
+            caughtError instanceof Error
+              ? caughtError.message
+              : "Tracker data could not be loaded.",
+          );
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsTrackerLoading(false);
+        }
+      }
+    }
+
+    void loadTrackerPage();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [trackerQuery]);
+
+  function resetPage() {
+    setTrackerPage(0);
+  }
+
+  function clearFilters() {
+    setSearch("");
+    setStatusFilter("");
+    setPriorityFilter("");
+    setRemoteTypeFilter("");
+    setCompanyFilter("");
+    setSortField("priority");
+    setSortDirection("asc");
+    setTrackerPage(0);
+  }
+
   async function handleCreate(
     input: ApplicationInput,
   ): Promise<Application> {
@@ -184,10 +344,12 @@ export default function ApplicationsPage() {
     setMessage(
       `${application.positionTitle} application was added.`,
     );
+    setCreatingForJobId(null);
 
     await Promise.all([
       loadApplications(),
       loadJobs(),
+      loadTracker(trackerQuery),
     ]);
 
     return application;
@@ -213,14 +375,24 @@ export default function ApplicationsPage() {
       `${application.positionTitle} application was updated.`,
     );
 
-    await loadApplications();
+    await Promise.all([
+      loadApplications(),
+      loadTracker(trackerQuery),
+    ]);
 
     return application;
   }
 
-  async function handleDelete(
-    application: Application,
-  ) {
+  async function handleDelete(applicationId: number) {
+    const application = applications.find(
+      (candidate) => candidate.id === applicationId,
+    );
+
+    if (!application) {
+      setError("The selected application could not be found.");
+      return;
+    }
+
     const confirmed = window.confirm(
       `Delete the application for ${application.positionTitle}? This action cannot be undone.`,
     );
@@ -249,6 +421,7 @@ export default function ApplicationsPage() {
       await Promise.all([
         loadApplications(),
         loadJobs(),
+        loadTracker(trackerQuery),
       ]);
     } catch (caughtError) {
       setError(
@@ -261,8 +434,30 @@ export default function ApplicationsPage() {
     }
   }
 
-  function handleEdit(application: Application) {
+  function handleEdit(applicationId: number) {
+    const application = applications.find(
+      (candidate) => candidate.id === applicationId,
+    );
+
+    if (!application) {
+      setError("The selected application could not be found.");
+      return;
+    }
+
     setEditingApplication(application);
+    setCreatingForJobId(null);
+    setMessage("");
+    setError("");
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  }
+
+  function handleAddApplication(jobOpportunityId: number) {
+    setEditingApplication(null);
+    setCreatingForJobId(jobOpportunityId);
     setMessage("");
     setError("");
 
@@ -281,7 +476,17 @@ export default function ApplicationsPage() {
           Track application status, follow-ups, recruiter
           information, résumé strategy, and interview progress.
         </p>
+        <button type="button" onClick={() => setIsImportOpen(true)}>
+          Import Jobs
+        </button>
       </header>
+
+      {isImportOpen && (
+        <ImportJobsPanel
+          onClose={() => setIsImportOpen(false)}
+          onImportComplete={() => loadTracker(trackerQuery)}
+        />
+      )}
 
       {editingApplication ? (
         <ApplicationForm
@@ -300,11 +505,14 @@ export default function ApplicationsPage() {
         />
       ) : (
         <ApplicationForm
-          key="create-application"
+          key={`create-application-${creatingForJobId ?? "new"}`}
           heading="Add application"
           submitLabel="Add application"
           jobs={availableJobs}
-          initialValues={emptyApplicationInput}
+          initialValues={{
+            ...emptyApplicationInput,
+            jobOpportunityId: creatingForJobId,
+          }}
           onSubmit={handleCreate}
         />
       )}
@@ -333,18 +541,211 @@ export default function ApplicationsPage() {
         </p>
       )}
 
-      {isLoading && <p>Loading applications...</p>}
+      <section
+        className="tracker-controls"
+        aria-labelledby="tracker-controls-heading"
+      >
+        <h2 id="tracker-controls-heading">Tracker view</h2>
+
+        <div className="tracker-controls__grid">
+          <label>
+            Search
+            <input
+              type="search"
+              value={search}
+              placeholder="Company, title, location, or source"
+              onChange={(event) => {
+                setSearch(event.target.value);
+                resetPage();
+              }}
+            />
+          </label>
+
+          <label>
+            Status filter
+            <select
+              value={statusFilter}
+              onChange={(event) => {
+                setStatusFilter(event.target.value);
+                resetPage();
+              }}
+            >
+              <option value="">All statuses</option>
+              <option value="SAVED">Saved</option>
+              <option value="PREPARING">Preparing</option>
+              <option value="APPLIED">Applied</option>
+              <option value="PHONE_SCREEN">Phone Screen</option>
+              <option value="INTERVIEW_ONE">Interview 1</option>
+              <option value="INTERVIEW_TWO">Interview 2</option>
+              <option value="OFFER">Offer</option>
+              <option value="REJECTED">Rejected</option>
+              <option value="WITHDRAWN">Withdrawn</option>
+              <option value="CLOSED">Closed</option>
+            </select>
+          </label>
+
+          <label>
+            Priority filter
+            <select
+              value={priorityFilter}
+              onChange={(event) => {
+                setPriorityFilter(event.target.value);
+                resetPage();
+              }}
+            >
+              <option value="">All priorities</option>
+              {[1, 2, 3, 4, 5].map((priority) => (
+                <option key={priority} value={priority}>
+                  {priority}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Work Arrangement filter
+            <select
+              value={remoteTypeFilter}
+              onChange={(event) => {
+                setRemoteTypeFilter(event.target.value);
+                resetPage();
+              }}
+            >
+              <option value="">All arrangements</option>
+              <option value="REMOTE">Remote</option>
+              <option value="HYBRID">Hybrid</option>
+              <option value="ONSITE">Onsite</option>
+              <option value="UNKNOWN">Unknown</option>
+            </select>
+          </label>
+
+          <label>
+            Company filter
+            <select
+              value={companyFilter}
+              onChange={(event) => {
+                setCompanyFilter(event.target.value);
+                resetPage();
+              }}
+            >
+              <option value="">All companies</option>
+              {companyOptions.map(([id, name]) => (
+                <option key={id} value={id}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Sort by
+            <select
+              value={sortField}
+              onChange={(event) => {
+                setSortField(
+                  event.target.value as ApplicationTrackerSort,
+                );
+                resetPage();
+              }}
+            >
+              <option value="priority">Priority</option>
+              <option value="company">Company</option>
+              <option value="positionTitle">Position Title</option>
+              <option value="status">Status</option>
+              <option value="matchScore">Match Score</option>
+              <option value="location">Location</option>
+              <option value="remoteType">Work Arrangement</option>
+              <option value="salaryMin">Minimum Salary</option>
+              <option value="datePosted">Date Posted</option>
+              <option value="applicationDate">Application Date</option>
+              <option value="followUpDate">Follow-Up Date</option>
+              <option value="source">Source</option>
+              <option value="createdAt">Date Added</option>
+            </select>
+          </label>
+
+          <label>
+            Direction
+            <select
+              value={sortDirection}
+              onChange={(event) => {
+                setSortDirection(
+                  event.target.value as "asc" | "desc",
+                );
+                resetPage();
+              }}
+            >
+              <option value="asc">Ascending</option>
+              <option value="desc">Descending</option>
+            </select>
+          </label>
+        </div>
+
+        <button type="button" onClick={clearFilters}>
+          Clear filters
+        </button>
+      </section>
+
+      {(isLoading || isTrackerLoading) && (
+        <p>Loading applications...</p>
+      )}
 
       {error && <p role="alert">{error}</p>}
 
-      {!isLoading && !error && (
+      {!isLoading && !isTrackerLoading && !error &&
+        trackerRows.length === 0 && hasActiveCriteria && (
+          <section aria-label="Filtered tracker results">
+            <p>No records match the current filters.</p>
+            <button type="button" onClick={clearFilters}>
+              Clear filters
+            </button>
+          </section>
+        )}
+
+      {!isLoading && !isTrackerLoading && !error &&
+        !(trackerRows.length === 0 && hasActiveCriteria) && (
         <ApplicationList
-          applications={applications}
+          rows={trackerRows}
           deletingId={deletingId}
           onEdit={handleEdit}
           onDelete={handleDelete}
+          onAddApplication={handleAddApplication}
         />
       )}
+
+      {!isLoading && !isTrackerLoading && !error &&
+        trackerTotalRows > 0 && (
+          <nav
+            className="tracker-pagination"
+            aria-label="Tracker pagination"
+          >
+            <button
+              type="button"
+              disabled={trackerPage === 0}
+              onClick={() =>
+                setTrackerPage((current) => Math.max(0, current - 1))
+              }
+            >
+              Previous
+            </button>
+            <span>
+              Page {trackerPage + 1} of {trackerTotalPages}
+            </span>
+            <span>
+              {trackerTotalRows} result
+              {trackerTotalRows === 1 ? "" : "s"}
+            </span>
+            <button
+              type="button"
+              disabled={trackerPage + 1 >= trackerTotalPages}
+              onClick={() =>
+                setTrackerPage((current) => current + 1)
+              }
+            >
+              Next
+            </button>
+          </nav>
+        )}
     </main>
   );
 }

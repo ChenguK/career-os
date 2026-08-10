@@ -1,52 +1,40 @@
 import type {
-  Application,
   ApplicationStatus,
 } from "../types/application";
+import type { ApplicationTrackerRow } from "../types/applicationTracker";
+import type { RemoteType } from "../../jobs/types/job";
 
 interface ApplicationListProps {
-  applications: Application[];
+  rows: ApplicationTrackerRow[];
   deletingId: number | null;
-  onEdit: (application: Application) => void;
-  onDelete: (application: Application) => Promise<void>;
+  onEdit: (applicationId: number) => void;
+  onDelete: (applicationId: number) => Promise<void>;
+  onAddApplication: (jobOpportunityId: number) => void;
 }
 
-function formatStatus(status: ApplicationStatus): string {
-  switch (status) {
-    case "SAVED":
-      return "Saved";
+const statusLabels: Record<ApplicationStatus, string> = {
+  SAVED: "Saved",
+  PREPARING: "Preparing",
+  APPLIED: "Applied",
+  PHONE_SCREEN: "Phone Screen",
+  INTERVIEW_ONE: "Interview 1",
+  INTERVIEW_TWO: "Interview 2",
+  OFFER: "Offer",
+  REJECTED: "Rejected",
+  WITHDRAWN: "Withdrawn",
+  CLOSED: "Closed",
+};
 
-    case "PREPARING":
-      return "Preparing";
+const remoteTypeLabels: Record<RemoteType, string> = {
+  REMOTE: "Remote",
+  HYBRID: "Hybrid",
+  ONSITE: "Onsite",
+  UNKNOWN: "Unknown",
+};
 
-    case "APPLIED":
-      return "Applied";
-
-    case "PHONE_SCREEN":
-      return "Phone Screen";
-
-    case "INTERVIEW_ONE":
-      return "Interview 1";
-
-    case "INTERVIEW_TWO":
-      return "Interview 2";
-
-    case "OFFER":
-      return "Offer";
-
-    case "REJECTED":
-      return "Rejected";
-
-    case "WITHDRAWN":
-      return "Withdrawn";
-
-    case "CLOSED":
-      return "Closed";
-  }
-}
-
-function formatDate(value: string | null): string | null {
+function formatDate(value: string | null): string {
   if (!value) {
-    return null;
+    return "—";
   }
 
   const [year, month, day] = value.split("-").map(Number);
@@ -55,247 +43,166 @@ function formatDate(value: string | null): string | null {
     month: "short",
     day: "numeric",
     year: "numeric",
-  }).format(
-    new Date(year, month - 1, day),
-  );
+  }).format(new Date(year, month - 1, day));
 }
 
-function formatDateTime(value: string | null): string | null {
-  if (!value) {
-    return null;
+function formatSalary(row: ApplicationTrackerRow): string {
+  if (row.salaryMin === null && row.salaryMax === null) {
+    return "—";
   }
 
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(value));
+  const formatter = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: row.salaryCurrency,
+    maximumFractionDigits: 0,
+  });
+
+  if (row.salaryMin !== null && row.salaryMax !== null) {
+    return `${formatter.format(row.salaryMin)}–${formatter.format(
+      row.salaryMax,
+    )}`;
+  }
+
+  if (row.salaryMin !== null) {
+    return `From ${formatter.format(row.salaryMin)}`;
+  }
+
+  return `Up to ${formatter.format(row.salaryMax ?? 0)}`;
 }
 
 export default function ApplicationList({
-  applications,
+  rows,
   deletingId,
   onEdit,
   onDelete,
+  onAddApplication,
 }: ApplicationListProps) {
-  if (applications.length === 0) {
-    return <p>No applications found.</p>;
+  if (rows.length === 0) {
+    return <p>No tracked jobs found.</p>;
   }
 
   return (
     <section aria-labelledby="application-list-heading">
-      <h2 id="application-list-heading">
-        Applications
-      </h2>
+      <h2 id="application-list-heading">Applications</h2>
 
-      <div className="application-list">
-        {applications.map((application) => {
-          const applicationDate = formatDate(
-            application.applicationDate,
-          );
+      <div className="application-table-container">
+        <table className="application-table">
+          <thead>
+            <tr>
+              <th scope="col">Company</th>
+              <th scope="col">Position Title</th>
+              <th scope="col">Status</th>
+              <th scope="col">Priority</th>
+              <th scope="col">Match Score</th>
+              <th scope="col">Location</th>
+              <th scope="col">Work Arrangement</th>
+              <th scope="col">Employment Type</th>
+              <th scope="col">Salary</th>
+              <th scope="col">Application URL</th>
+              <th scope="col">Date Posted</th>
+              <th scope="col">Application Date</th>
+              <th scope="col">Follow-Up Date</th>
+              <th scope="col">Resume Version</th>
+              <th scope="col">Cover Letter Needed</th>
+              <th scope="col">Source</th>
+              <th scope="col">Actions</th>
+            </tr>
+          </thead>
 
-          const followUpDate = formatDate(
-            application.followUpDate,
-          );
+          <tbody>
+            {rows.map((row) => {
+              const hasApplication = row.applicationId !== null;
 
-          const phoneScreen = formatDateTime(
-            application.phoneScreenAt,
-          );
-
-          const interviewOne = formatDateTime(
-            application.interviewOneAt,
-          );
-
-          const interviewTwo = formatDateTime(
-            application.interviewTwoAt,
-          );
-
-          const offerDate = formatDateTime(
-            application.offerAt,
-          );
-
-          const rejectedDate = formatDateTime(
-            application.rejectedAt,
-          );
-
-          return (
-            <article
-              className="application-card"
-              key={application.id}
-            >
-              <div className="application-card__heading">
-                <div>
-                  <h3>{application.positionTitle}</h3>
-
-                  {application.companyName && (
-                    <p>{application.companyName}</p>
-                  )}
-                </div>
-
-                <span className="application-card__status">
-                  {formatStatus(application.status)}
-                </span>
-              </div>
-
-              <div className="application-card__details">
-                {application.resumeVersion && (
-                  <p>
-                    <strong>Résumé:</strong>{" "}
-                    {application.resumeVersion}
-                  </p>
-                )}
-
-                <p>
-                  <strong>Cover letter:</strong>{" "}
-                  {application.coverLetterNeeded
-                    ? "Needed"
-                    : "Not needed"}
-                </p>
-
-                {applicationDate && (
-                  <p>
-                    <strong>Applied:</strong>{" "}
-                    {applicationDate}
-                  </p>
-                )}
-
-                {followUpDate && (
-                  <p>
-                    <strong>Follow up:</strong>{" "}
-                    {followUpDate}
-                  </p>
-                )}
-
-                {application.recruiterName && (
-                  <p>
-                    <strong>Recruiter:</strong>{" "}
-                    {application.recruiterName}
-                  </p>
-                )}
-
-                {application.recruiterEmail && (
-                  <p>
-                    <strong>Recruiter email:</strong>{" "}
-                    <a
-                      href={`mailto:${application.recruiterEmail}`}
-                    >
-                      {application.recruiterEmail}
-                    </a>
-                  </p>
-                )}
-
-                {phoneScreen && (
-                  <p>
-                    <strong>Phone screen:</strong>{" "}
-                    {phoneScreen}
-                  </p>
-                )}
-
-                {interviewOne && (
-                  <p>
-                    <strong>Interview 1:</strong>{" "}
-                    {interviewOne}
-                  </p>
-                )}
-
-                {interviewTwo && (
-                  <p>
-                    <strong>Interview 2:</strong>{" "}
-                    {interviewTwo}
-                  </p>
-                )}
-
-                {offerDate && (
-                  <p>
-                    <strong>Offer:</strong> {offerDate}
-                  </p>
-                )}
-
-                {rejectedDate && (
-                  <p>
-                    <strong>Rejected:</strong>{" "}
-                    {rejectedDate}
-                  </p>
-                )}
-              </div>
-
-              {application.projectsToHighlight && (
-                <div>
-                  <strong>Projects to highlight</strong>
-                  <p>{application.projectsToHighlight}</p>
-                </div>
-              )}
-
-              {application.skillsToEmphasize && (
-                <div>
-                  <strong>Skills to emphasize</strong>
-                  <p>{application.skillsToEmphasize}</p>
-                </div>
-              )}
-
-              {application.interviewTopics && (
-                <div>
-                  <strong>Interview topics</strong>
-                  <p>{application.interviewTopics}</p>
-                </div>
-              )}
-
-              {application.notes && (
-                <div>
-                  <strong>Notes</strong>
-                  <p>{application.notes}</p>
-                </div>
-              )}
-
-              <div className="application-card__links">
-                {application.portfolioLink && (
-                  <a
-                    href={application.portfolioLink}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Portfolio
-                  </a>
-                )}
-
-                {application.githubLink && (
-                  <a
-                    href={application.githubLink}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    GitHub
-                  </a>
-                )}
-              </div>
-
-              <div className="application-card__actions">
-                <button
-                  type="button"
-                  onClick={() => onEdit(application)}
-                >
-                  Edit
-                </button>
-
-                <button
-                  type="button"
-                  disabled={
-                    deletingId === application.id
-                  }
-                  onClick={() =>
-                    void onDelete(application)
-                  }
-                >
-                  {deletingId === application.id
-                    ? "Deleting..."
-                    : "Delete"}
-                </button>
-              </div>
-            </article>
-          );
-        })}
+              return (
+                <tr key={row.jobOpportunityId}>
+                  <td>{row.companyName ?? "—"}</td>
+                  <th scope="row">{row.positionTitle}</th>
+                  <td>
+                    {row.status
+                      ? statusLabels[row.status]
+                      : statusLabels.SAVED}
+                  </td>
+                  <td>{row.priority}</td>
+                  <td>
+                    {row.matchScore === null
+                      ? "—"
+                      : `${row.matchScore}/10`}
+                  </td>
+                  <td>{row.location ?? "—"}</td>
+                  <td>{remoteTypeLabels[row.remoteType]}</td>
+                  <td>{row.employmentType ?? "—"}</td>
+                  <td>{formatSalary(row)}</td>
+                  <td>
+                    {row.applicationUrl ? (
+                      <a
+                        href={row.applicationUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Open job
+                      </a>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td>{formatDate(row.datePosted)}</td>
+                  <td>{formatDate(row.applicationDate)}</td>
+                  <td>{formatDate(row.followUpDate)}</td>
+                  <td>{row.resumeVersion ?? "—"}</td>
+                  <td>
+                    {row.coverLetterNeeded === null
+                      ? "—"
+                      : row.coverLetterNeeded
+                        ? "Yes"
+                        : "No"}
+                  </td>
+                  <td>{row.source ?? "—"}</td>
+                  <td>
+                    <div className="application-table__actions">
+                      {hasApplication ? (
+                        <>
+                          <button
+                            type="button"
+                            aria-label={`Edit application for ${row.positionTitle}`}
+                            onClick={() =>
+                              onEdit(row.applicationId!)
+                            }
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Delete application for ${row.positionTitle}`}
+                            disabled={
+                              deletingId === row.applicationId
+                            }
+                            onClick={() =>
+                              void onDelete(row.applicationId!)
+                            }
+                          >
+                            {deletingId === row.applicationId
+                              ? "Deleting..."
+                              : "Delete"}
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          aria-label={`Add application for ${row.positionTitle}`}
+                          onClick={() =>
+                            onAddApplication(row.jobOpportunityId)
+                          }
+                        >
+                          Add application
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </section>
   );

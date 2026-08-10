@@ -10,6 +10,9 @@ public interface JobOpportunityRepository
     List<JobOpportunity> findAllByOrderByPriorityAscCreatedAtDesc();
 
     List<JobOpportunity>
+        findAllByOrderByPriorityAscCreatedAtDescIdDesc();
+
+    List<JobOpportunity>
         findByPositionTitleContainingIgnoreCaseOrderByPriorityAscCreatedAtDesc(
             String positionTitle
         );
