@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   getApplicationTracker,
+  exportApplicationTrackerCsv,
+  exportApplicationTrackerXlsx,
   getImportBatch,
   getImportHistory,
   persistCsvImport,
@@ -76,6 +78,104 @@ describe("getApplicationTracker", () => {
     expect(parameters.get("direction")).toBe("desc");
     expect(parameters.get("page")).toBe("1");
     expect(parameters.get("size")).toBe("25");
+  });
+});
+
+describe("exportApplicationTrackerCsv", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("sends current criteria without pagination and reads the filename", async () => {
+    const blob = new Blob(["job_id\r\n1\r\n"], { type: "text/csv" });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: new Headers({
+        "Content-Disposition": "attachment; filename=\"current.csv\"",
+      }),
+      blob: async () => blob,
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await exportApplicationTrackerCsv("CURRENT_VIEW", {
+      search: " platform ", statuses: ["APPLIED"], priorities: [1],
+      remoteTypes: ["HYBRID"], companyId: 9, sort: "company",
+      direction: "desc", page: 4, size: 25,
+    });
+
+    const url = new URL(String(fetchMock.mock.calls[0][0]), "http://localhost");
+    expect(url.searchParams.get("mode")).toBe("CURRENT_VIEW");
+    expect(url.searchParams.get("search")).toBe("platform");
+    expect(url.searchParams.getAll("statuses")).toEqual(["APPLIED"]);
+    expect(url.searchParams.getAll("priorities")).toEqual(["1"]);
+    expect(url.searchParams.getAll("remoteTypes")).toEqual(["HYBRID"]);
+    expect(url.searchParams.get("companyId")).toBe("9");
+    expect(url.searchParams.get("sort")).toBe("company");
+    expect(url.searchParams.get("direction")).toBe("desc");
+    expect(url.searchParams.has("page")).toBe(false);
+    expect(url.searchParams.has("size")).toBe(false);
+    expect(result).toEqual({ blob, filename: "current.csv" });
+  });
+
+  it("ignores tracker criteria for all applications", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: new Headers(),
+      blob: async () => new Blob(),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await exportApplicationTrackerCsv("ALL", {
+      search: "hidden", statuses: ["OFFER"], page: 7,
+    });
+
+    expect(fetchMock.mock.calls[0][0])
+      .toBe("/api/applications/tracker/export.csv?mode=ALL");
+  });
+});
+
+describe("exportApplicationTrackerXlsx", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("sends current-view criteria without pagination", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: new Headers({
+        "Content-Disposition": "attachment; filename=careeros-applications-current-view-2026-08-13.xlsx",
+      }),
+      blob: async () => new Blob(["xlsx"]),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await exportApplicationTrackerXlsx("CURRENT_VIEW", {
+      search: "engineer",
+      statuses: ["APPLIED"],
+      sort: "company",
+      direction: "desc",
+      page: 8,
+      size: 1,
+    });
+
+    const url = String(fetchMock.mock.calls[0][0]);
+    expect(url).toContain("/api/applications/tracker/export.xlsx?");
+    expect(url).toContain("search=engineer");
+    expect(url).toContain("statuses=APPLIED");
+    expect(url).toContain("sort=company");
+    expect(url).not.toContain("page=");
+    expect(url).not.toContain("size=");
+    expect(result.filename).toBe(
+      "careeros-applications-current-view-2026-08-13.xlsx",
+    );
+  });
+
+  it("ignores tracker criteria for all applications", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: new Headers(),
+      blob: async () => new Blob(["xlsx"]),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await exportApplicationTrackerXlsx("ALL", { search: "ignored", page: 4 });
+    expect(String(fetchMock.mock.calls[0][0]))
+      .toBe("/api/applications/tracker/export.xlsx?mode=ALL");
   });
 });
 

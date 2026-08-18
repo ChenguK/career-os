@@ -42,7 +42,9 @@ public class ImportBatch {
 
     public ImportBatch(String filename, int totalRows, int selectedRows) {
         this.originalFilename = filename;
-        this.format = "CSV";
+        this.format = filename.toLowerCase().endsWith(".xlsx")
+            ? "XLSX"
+            : "CSV";
         this.schemaVersion = "careeros_job_import_v1";
         this.totalRowCount = totalRows;
         this.selectedRowCount = selectedRows;

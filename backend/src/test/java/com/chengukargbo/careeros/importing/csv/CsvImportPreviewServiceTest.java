@@ -81,6 +81,35 @@ class CsvImportPreviewServiceTest {
     }
 
     @Test
+    void exportedSystemColumnsAreIgnoredButUnknownColumnsStillWarn() {
+        when(analysisService.analyze(anyList())).thenAnswer(invocation -> {
+            List<com.chengukargbo.careeros.importing.RawImportRow> raw =
+                invocation.getArgument(0);
+            return raw.stream()
+                .map(row -> normalizer.normalize(row.rowNumber(), row.fields()))
+                .toList();
+        });
+
+        ImportPreviewResponse response = service.preview(file(
+            "round-trip.csv",
+            "job_id,company_id,position_title,job_created_at,job_updated_at,"
+                + "application_id,application_created_at,application_updated_at,Unknown\n"
+                + "1,2,Engineer,2026-08-01T10:00:00Z,2026-08-02T10:00:00Z,"
+                + "3,2026-08-03T10:00:00Z,2026-08-04T10:00:00Z,value\n"
+        ));
+
+        assertThat(response.createCount()).isEqualTo(1);
+        assertThat(response.fileWarnings()).singleElement()
+            .extracting(com.chengukargbo.careeros.importing.ImportIssue::field)
+            .isEqualTo("Unknown");
+        assertThat(response.rows().getFirst().warnings()).singleElement()
+            .extracting(com.chengukargbo.careeros.importing.ImportIssue::field)
+            .isEqualTo("Unknown");
+        assertThat(response.rows().getFirst().values().positionTitle())
+            .isEqualTo("Engineer");
+    }
+
+    @Test
     void validatesMissingWrongTypeAndOversizedFiles() {
         assertThatThrownBy(() -> service.preview(null))
             .isInstanceOf(BusinessValidationException.class);

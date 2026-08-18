@@ -6,10 +6,18 @@ import {
 } from "react";
 
 import { getJobs } from "../../jobs/api/jobsApi";
-import type { JobOpportunity } from "../../jobs/types/job";
+import { updateJob } from "../../jobs/api/jobsApi";
+import type {
+  JobOpportunity,
+  JobOpportunityInput,
+} from "../../jobs/types/job";
+import { getCompanies } from "../../companies/api/companiesApi";
+import type { Company } from "../../companies/types/company";
 import {
   createApplication,
   deleteApplication,
+  exportApplicationTrackerCsv,
+  exportApplicationTrackerXlsx,
   getApplicationTracker,
   getApplications,
   updateApplication,
@@ -17,6 +25,7 @@ import {
 import ApplicationForm from "../components/ApplicationForm";
 import ApplicationList from "../components/ApplicationList";
 import ImportJobsPanel from "../components/ImportJobsPanel";
+import TrackerRecordEditor from "../components/TrackerRecordEditor";
 import type {
   Application,
   ApplicationInput,
@@ -31,66 +40,13 @@ import type {
 } from "../types/applicationTracker";
 import type { RemoteType } from "../../jobs/types/job";
 
-function toLocalDateTimeInput(
-  value: string | null,
-): string {
-  if (!value) {
-    return "";
-  }
-
-  const date = new Date(value);
-
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
-}
-
-function applicationToInput(
-  application: Application,
-): ApplicationInput {
-  return {
-    jobOpportunityId: application.jobOpportunityId,
-    status: application.status,
-    resumeVersion: application.resumeVersion ?? "",
-    coverLetterNeeded: application.coverLetterNeeded,
-    portfolioLink: application.portfolioLink ?? "",
-    githubLink: application.githubLink ?? "",
-    projectsToHighlight:
-      application.projectsToHighlight ?? "",
-    skillsToEmphasize:
-      application.skillsToEmphasize ?? "",
-    interviewTopics: application.interviewTopics ?? "",
-    recruiterName: application.recruiterName ?? "",
-    recruiterEmail: application.recruiterEmail ?? "",
-    applicationDate: application.applicationDate ?? "",
-    followUpDate: application.followUpDate ?? "",
-    phoneScreenAt: toLocalDateTimeInput(
-      application.phoneScreenAt,
-    ),
-    interviewOneAt: toLocalDateTimeInput(
-      application.interviewOneAt,
-    ),
-    interviewTwoAt: toLocalDateTimeInput(
-      application.interviewTwoAt,
-    ),
-    offerAt: toLocalDateTimeInput(application.offerAt),
-    rejectedAt: toLocalDateTimeInput(
-      application.rejectedAt,
-    ),
-    notes: application.notes ?? "",
-  };
-}
-
 export default function ApplicationsPage() {
   const [applications, setApplications] = useState<
     Application[]
   >([]);
 
   const [jobs, setJobs] = useState<JobOpportunity[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [trackerRows, setTrackerRows] = useState<
     ApplicationTrackerRow[]
   >([]);
@@ -109,8 +65,8 @@ export default function ApplicationsPage() {
   const [sortDirection, setSortDirection] =
     useState<"asc" | "desc">("asc");
 
-  const [editingApplication, setEditingApplication] =
-    useState<Application | null>(null);
+  const [editingRecord, setEditingRecord] =
+    useState<ApplicationTrackerRow | null>(null);
   const [creatingForJobId, setCreatingForJobId] =
     useState<number | null>(null);
 
@@ -122,6 +78,8 @@ export default function ApplicationsPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [exporting, setExporting] = useState<string | null>(null);
+  const [exportError, setExportError] = useState("");
 
   const loadApplications = useCallback(async () => {
     setIsLoading(true);
@@ -150,6 +108,18 @@ export default function ApplicationsPage() {
         caughtError instanceof Error
           ? caughtError.message
           : "Jobs could not be loaded.",
+      );
+    }
+  }, []);
+
+  const loadCompanies = useCallback(async () => {
+    try {
+      setCompanies(await getCompanies());
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Companies could not be loaded.",
       );
     }
   }, []);
@@ -183,15 +153,17 @@ export default function ApplicationsPage() {
       setError("");
 
       try {
-        const [applicationResults, jobResults] =
+        const [applicationResults, jobResults, companyResults] =
           await Promise.all([
             getApplications(),
             getJobs(),
+            getCompanies(),
           ]);
 
         if (!isCancelled) {
           setApplications(applicationResults);
           setJobs(jobResults);
+          setCompanies(companyResults);
         }
       } catch (caughtError) {
         if (!isCancelled) {
@@ -355,24 +327,18 @@ export default function ApplicationsPage() {
     return application;
   }
 
-  async function handleUpdate(
+  async function handleApplicationUpdate(
     input: ApplicationInput,
   ): Promise<Application> {
-    if (!editingApplication) {
+    if (editingRecord?.applicationId == null) {
       throw new Error(
         "No application has been selected for editing.",
       );
     }
 
     const application = await updateApplication(
-      editingApplication.id,
+      editingRecord.applicationId,
       input,
-    );
-
-    setEditingApplication(null);
-
-    setMessage(
-      `${application.positionTitle} application was updated.`,
     );
 
     await Promise.all([
@@ -383,39 +349,51 @@ export default function ApplicationsPage() {
     return application;
   }
 
-  async function handleDelete(applicationId: number) {
-    const application = applications.find(
-      (candidate) => candidate.id === applicationId,
-    );
+  async function handleJobUpdate(
+    input: JobOpportunityInput,
+  ): Promise<JobOpportunity> {
+    if (!editingRecord) {
+      throw new Error("No tracker record has been selected for editing.");
+    }
 
-    if (!application) {
-      setError("The selected application could not be found.");
+    const job = await updateJob(editingRecord.jobOpportunityId, input);
+    await Promise.all([
+      loadJobs(),
+      loadCompanies(),
+      loadTracker(trackerQuery),
+    ]);
+    return job;
+  }
+
+  async function handleDelete(row: ApplicationTrackerRow) {
+    if (row.applicationId === null) {
+      setError("The selected tracker row has no application to delete.");
       return;
     }
 
     const confirmed = window.confirm(
-      `Delete the application for ${application.positionTitle}? This action cannot be undone.`,
+      `Delete the application for ${row.positionTitle}? This action cannot be undone.`,
     );
 
     if (!confirmed) {
       return;
     }
 
-    setDeletingId(application.id);
+    setDeletingId(row.applicationId);
     setError("");
     setMessage("");
 
     try {
-      await deleteApplication(application.id);
+      await deleteApplication(row.applicationId);
 
       if (
-        editingApplication?.id === application.id
+        editingRecord?.applicationId === row.applicationId
       ) {
-        setEditingApplication(null);
+        setEditingRecord(null);
       }
 
       setMessage(
-        `${application.positionTitle} application was deleted.`,
+        `${row.positionTitle} application was deleted.`,
       );
 
       await Promise.all([
@@ -434,18 +412,10 @@ export default function ApplicationsPage() {
     }
   }
 
-  function handleEdit(applicationId: number) {
-    const application = applications.find(
-      (candidate) => candidate.id === applicationId,
-    );
-
-    if (!application) {
-      setError("The selected application could not be found.");
-      return;
-    }
-
-    setEditingApplication(application);
+  function handleEdit(row: ApplicationTrackerRow) {
+    setEditingRecord(row);
     setCreatingForJobId(null);
+    setIsImportOpen(false);
     setMessage("");
     setError("");
 
@@ -456,7 +426,7 @@ export default function ApplicationsPage() {
   }
 
   function handleAddApplication(jobOpportunityId: number) {
-    setEditingApplication(null);
+    setEditingRecord(null);
     setCreatingForJobId(jobOpportunityId);
     setMessage("");
     setError("");
@@ -465,6 +435,41 @@ export default function ApplicationsPage() {
       top: 0,
       behavior: "smooth",
     });
+  }
+
+  async function handleExport(
+    mode: "CURRENT_VIEW" | "ALL",
+    format: "csv" | "xlsx",
+  ) {
+    if (exporting) {
+      return;
+    }
+
+    const operation = `${mode}-${format}`;
+    setExporting(operation);
+    setExportError("");
+    try {
+      const download = await (format === "xlsx"
+        ? exportApplicationTrackerXlsx
+        : exportApplicationTrackerCsv)(
+        mode,
+        mode === "CURRENT_VIEW" ? trackerQuery : {},
+      );
+      const url = URL.createObjectURL(download.blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = download.filename ?? `careeros-applications.${format}`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (caughtError) {
+      setExportError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Applications could not be exported.",
+      );
+    } finally {
+      setExporting(null);
+    }
   }
 
   return (
@@ -476,32 +481,81 @@ export default function ApplicationsPage() {
           Track application status, follow-ups, recruiter
           information, résumé strategy, and interview progress.
         </p>
-        <button type="button" onClick={() => setIsImportOpen(true)}>
+        <button
+          type="button"
+          onClick={() => {
+            setEditingRecord(null);
+            setCreatingForJobId(null);
+            setIsImportOpen(true);
+          }}
+        >
           Import Jobs
         </button>
+        <div aria-label="Export applications">
+          <span>Export</span>{" "}
+          <button
+            type="button"
+            disabled={exporting !== null}
+            onClick={() => handleExport("CURRENT_VIEW", "csv")}
+          >
+            {exporting === "CURRENT_VIEW-csv"
+              ? "Exporting…"
+              : "Current View (.csv)"}
+          </button>{" "}
+          <button
+            type="button"
+            disabled={exporting !== null}
+            onClick={() => handleExport("ALL", "csv")}
+          >
+            {exporting === "ALL-csv"
+              ? "Exporting…"
+              : "All Applications (.csv)"}
+          </button>
+          {" "}
+          <button
+            type="button"
+            disabled={exporting !== null}
+            onClick={() => handleExport("CURRENT_VIEW", "xlsx")}
+          >
+            {exporting === "CURRENT_VIEW-xlsx"
+              ? "Exporting…"
+              : "Current View (.xlsx)"}
+          </button>{" "}
+          <button
+            type="button"
+            disabled={exporting !== null}
+            onClick={() => handleExport("ALL", "xlsx")}
+          >
+            {exporting === "ALL-xlsx"
+              ? "Exporting…"
+              : "All Applications (.xlsx)"}
+          </button>
+        </div>
+        {exportError && <p role="alert">{exportError}</p>}
       </header>
 
       {isImportOpen && (
         <ImportJobsPanel
           onClose={() => setIsImportOpen(false)}
-          onImportComplete={() => loadTracker(trackerQuery)}
+          onImportComplete={() => Promise.all([
+            loadTracker(trackerQuery),
+            loadApplications(),
+            loadJobs(),
+            loadCompanies(),
+          ]).then(() => undefined)}
         />
       )}
 
-      {editingApplication ? (
-        <ApplicationForm
-          key={`edit-application-${editingApplication.id}`}
-          heading={`Edit ${editingApplication.positionTitle}`}
-          submitLabel="Save changes"
+      {editingRecord ? (
+        <TrackerRecordEditor
+          key={`tracker-record-${editingRecord.jobOpportunityId}-${editingRecord.applicationId ?? "job-only"}`}
+          row={editingRecord}
+          companies={companies}
           jobs={jobs}
-          initialValues={applicationToInput(
-            editingApplication,
-          )}
-          isEditing
-          onSubmit={handleUpdate}
-          onCancel={() =>
-            setEditingApplication(null)
-          }
+          onSaveJob={handleJobUpdate}
+          onSaveApplication={handleApplicationUpdate}
+          onAddApplication={handleAddApplication}
+          onClose={() => setEditingRecord(null)}
         />
       ) : (
         <ApplicationForm
@@ -526,7 +580,7 @@ export default function ApplicationsPage() {
         </p>
       )}
 
-      {!editingApplication &&
+      {!editingRecord &&
         availableJobs.length === 0 &&
         jobs.length > 0 && (
           <p>

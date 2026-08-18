@@ -5,11 +5,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import ApplicationsPage from "./ApplicationsPage";
 import {
   getApplicationTracker,
+  exportApplicationTrackerCsv,
+  exportApplicationTrackerXlsx,
   getApplications,
   persistCsvImport,
   previewCsvImport,
+  updateApplication,
 } from "../api/applicationsApi";
 import { getJobs } from "../../jobs/api/jobsApi";
+import { updateJob } from "../../jobs/api/jobsApi";
+import { getCompanies } from "../../companies/api/companiesApi";
 import type { Application } from "../types/application";
 import type { ApplicationTrackerRow } from "../types/applicationTracker";
 import type { JobOpportunity } from "../../jobs/types/job";
@@ -17,6 +22,8 @@ import type { JobOpportunity } from "../../jobs/types/job";
 vi.mock("../api/applicationsApi", () => ({
   createApplication: vi.fn(),
   deleteApplication: vi.fn(),
+  exportApplicationTrackerCsv: vi.fn(),
+  exportApplicationTrackerXlsx: vi.fn(),
   getApplicationTracker: vi.fn(),
   getApplications: vi.fn(),
   persistCsvImport: vi.fn(),
@@ -26,6 +33,11 @@ vi.mock("../api/applicationsApi", () => ({
 
 vi.mock("../../jobs/api/jobsApi", () => ({
   getJobs: vi.fn(),
+  updateJob: vi.fn(),
+}));
+
+vi.mock("../../companies/api/companiesApi", () => ({
+  getCompanies: vi.fn(),
 }));
 
 const job: JobOpportunity = {
@@ -145,11 +157,31 @@ function trackerRow(
 
 describe("ApplicationsPage", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.mocked(getApplications).mockResolvedValue([application]);
     vi.mocked(getJobs).mockResolvedValue([
       job,
       jobWithoutApplication,
     ]);
+    vi.mocked(getCompanies).mockResolvedValue([{
+      id: 1,
+      name: "GitHub",
+      websiteUrl: null,
+      careersUrl: null,
+      industry: null,
+      companyType: null,
+      mission: null,
+      products: null,
+      techStack: null,
+      remotePolicy: null,
+      salaryNotes: null,
+      generalNotes: null,
+      dreamCompany: false,
+      createdAt: "2026-08-01T10:00:00Z",
+      updatedAt: "2026-08-01T10:00:00Z",
+    }]);
+    vi.mocked(updateJob).mockResolvedValue(job);
+    vi.mocked(updateApplication).mockResolvedValue(application);
     vi.mocked(getApplicationTracker).mockResolvedValue({
       content: [
         trackerRow(job, application),
@@ -161,6 +193,84 @@ describe("ApplicationsPage", () => {
       totalPages: 1,
     });
     vi.stubGlobal("scrollTo", vi.fn());
+    vi.mocked(exportApplicationTrackerCsv).mockResolvedValue({
+      blob: new Blob(["csv"]),
+      filename: "applications.csv",
+    });
+    vi.mocked(exportApplicationTrackerXlsx).mockResolvedValue({
+      blob: new Blob(["xlsx"]),
+      filename: "applications.xlsx",
+    });
+    vi.stubGlobal("URL", {
+      ...URL,
+      createObjectURL: vi.fn(() => "blob:test"),
+      revokeObjectURL: vi.fn(),
+    });
+    vi.spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => undefined);
+  });
+
+  it("exports current criteria without changing tracker controls", async () => {
+    const user = userEvent.setup();
+    render(<ApplicationsPage />);
+    await screen.findByRole("table");
+    await user.type(screen.getByRole("searchbox"), "platform");
+    await user.selectOptions(screen.getByLabelText("Status filter"), "APPLIED");
+    await user.selectOptions(screen.getByLabelText("Sort by"), "company");
+    await user.selectOptions(screen.getByLabelText("Direction"), "desc");
+    await waitFor(() => expect(getApplicationTracker).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: "platform" }),
+    ));
+
+    await user.click(screen.getByRole("button", { name: "Current View (.csv)" }));
+
+    expect(exportApplicationTrackerCsv).toHaveBeenCalledWith(
+      "CURRENT_VIEW",
+      expect.objectContaining({
+        search: "platform", statuses: ["APPLIED"], sort: "company",
+        direction: "desc",
+      }),
+    );
+    expect(screen.getByRole("searchbox")).toHaveValue("platform");
+    expect(screen.getByLabelText("Status filter")).toHaveValue("APPLIED");
+    expect(HTMLAnchorElement.prototype.click).toHaveBeenCalled();
+  });
+
+  it("exports all without criteria and reports failures for retry", async () => {
+    vi.mocked(exportApplicationTrackerCsv)
+      .mockRejectedValueOnce(new Error("Export limit exceeded"))
+      .mockResolvedValueOnce({ blob: new Blob(["csv"]), filename: "all.csv" });
+    const user = userEvent.setup();
+    render(<ApplicationsPage />);
+    await screen.findByRole("table");
+
+    const all = screen.getByRole("button", { name: "All Applications (.csv)" });
+    await user.click(all);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Export limit exceeded");
+    expect(exportApplicationTrackerCsv).toHaveBeenLastCalledWith("ALL", {});
+
+    await user.click(all);
+    await waitFor(() => expect(exportApplicationTrackerCsv).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("offers XLSX current-view and all exports through the backend", async () => {
+    const user = userEvent.setup();
+    render(<ApplicationsPage />);
+    await screen.findByRole("table");
+    await user.type(screen.getByRole("searchbox"), "platform");
+    await waitFor(() => expect(getApplicationTracker).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: "platform" }),
+    ));
+
+    await user.click(screen.getByRole("button", { name: "Current View (.xlsx)" }));
+    expect(exportApplicationTrackerXlsx).toHaveBeenCalledWith(
+      "CURRENT_VIEW",
+      expect.objectContaining({ search: "platform" }),
+    );
+    await user.click(screen.getByRole("button", { name: "All Applications (.xlsx)" }));
+    expect(exportApplicationTrackerXlsx).toHaveBeenLastCalledWith("ALL", {});
+    expect(screen.getByRole("searchbox")).toHaveValue("platform");
   });
 
   it("renders canonical rows fetched from the tracker endpoint", async () => {
@@ -259,16 +369,19 @@ describe("ApplicationsPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Import Jobs" }));
     await user.upload(
-      screen.getByLabelText("CSV file"),
+      screen.getByLabelText("CSV or XLSX file"),
       new File(["Job Title\nImported Engineer"], "jobs.csv", {
         type: "text/csv",
       }),
     );
-    await user.click(screen.getByRole("button", { name: "Preview CSV" }));
+    await user.click(screen.getByRole("button", { name: "Preview file" }));
     await screen.findByText("1 rows found");
     await user.click(screen.getByRole("button", { name: "Import Selected (1)" }));
     await screen.findByText("Import complete");
 
+    expect(getApplications).toHaveBeenCalledTimes(2);
+    expect(getJobs).toHaveBeenCalledTimes(2);
+    expect(getCompanies).toHaveBeenCalledTimes(2);
     expect(search).toHaveValue("platform");
     expect(getApplicationTracker).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -450,7 +563,7 @@ describe("ApplicationsPage", () => {
     });
   });
 
-  it("opens the existing application in the edit form", async () => {
+  it("opens the full canonical record editor and populates both sections", async () => {
     const user = userEvent.setup();
     render(<ApplicationsPage />);
 
@@ -465,9 +578,96 @@ describe("ApplicationsPage", () => {
         name: "Edit Platform Engineer",
       }),
     ).toBeInTheDocument();
-    await waitFor(() => {
-      expect(screen.getByLabelText("Job opportunity"))
-        .toHaveValue("1");
-    });
+    expect(screen.getByLabelText("Position title"))
+      .toHaveValue("Platform Engineer");
+    expect(screen.getByLabelText("Location"))
+      .toHaveValue("New York, NY");
+    expect(screen.getByLabelText("Status")).toHaveValue("APPLIED");
+    expect(screen.getByLabelText("Résumé version"))
+      .toHaveValue("Software Engineering");
+  });
+
+  it("keeps import and tracker editing mutually exclusive", async () => {
+    const user = userEvent.setup();
+    render(<ApplicationsPage />);
+    await screen.findByRole("table");
+
+    await user.click(screen.getByRole("button", { name: "Import Jobs" }));
+    expect(screen.getByRole("dialog", { name: "Import Jobs" }))
+      .toBeInTheDocument();
+    await user.click(screen.getByRole("button", {
+      name: "Edit application for Platform Engineer",
+    }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Edit Platform Engineer" }))
+      .toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Import Jobs" }));
+    expect(screen.queryByRole("heading", { name: "Edit Platform Engineer" }))
+      .not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Import Jobs" }))
+      .toBeInTheDocument();
+  });
+
+  it("saves job and application details through their independent IDs", async () => {
+    const user = userEvent.setup();
+    render(<ApplicationsPage />);
+    await user.click(await screen.findByRole("button", {
+      name: "Edit application for Platform Engineer",
+    }));
+
+    await user.click(screen.getByRole("button", { name: "Save Job Details" }));
+    expect(updateJob).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ positionTitle: "Platform Engineer" }),
+    );
+    expect(updateApplication).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", {
+      name: "Save Application Details",
+    }));
+    expect(updateApplication).toHaveBeenCalledWith(
+      101,
+      expect.objectContaining({ jobOpportunityId: 1, status: "APPLIED" }),
+    );
+    expect(updateJob).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels editing without saving or resetting tracker criteria", async () => {
+    vi.mocked(getApplicationTracker).mockImplementation(async (query = {}) => ({
+      content: [trackerRow(job, application)],
+      page: query.page ?? 0,
+      size: 25,
+      totalRows: 60,
+      totalPages: 3,
+    }));
+    const user = userEvent.setup();
+    render(<ApplicationsPage />);
+    await screen.findByRole("table");
+    await user.type(screen.getByRole("searchbox"), "platform");
+    await user.selectOptions(screen.getByLabelText("Status filter"), "APPLIED");
+    await user.selectOptions(screen.getByLabelText("Sort by"), "company");
+    await user.selectOptions(screen.getByLabelText("Direction"), "desc");
+    await waitFor(() => expect(getApplicationTracker).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        search: "platform",
+        statuses: ["APPLIED"],
+        sort: "company",
+        direction: "desc",
+      }),
+    ));
+    await user.click(screen.getByRole("button", {
+      name: "Edit application for Platform Engineer",
+    }));
+    await user.click(screen.getAllByRole("button", { name: "Cancel" })[1]);
+
+    expect(screen.queryByRole("heading", { name: "Edit Platform Engineer" }))
+      .not.toBeInTheDocument();
+    expect(screen.getByRole("searchbox")).toHaveValue("platform");
+    expect(screen.getByLabelText("Status filter")).toHaveValue("APPLIED");
+    expect(screen.getByLabelText("Sort by")).toHaveValue("company");
+    expect(screen.getByLabelText("Direction")).toHaveValue("desc");
+    expect(updateJob).not.toHaveBeenCalled();
+    expect(updateApplication).not.toHaveBeenCalled();
   });
 });

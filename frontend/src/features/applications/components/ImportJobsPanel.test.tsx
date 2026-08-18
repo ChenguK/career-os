@@ -75,8 +75,8 @@ async function chooseAndPreview(user: ReturnType<typeof userEvent.setup>) {
   const file = new File(["Job Title\nEngineer"], "jobs.csv", {
     type: "text/csv",
   });
-  await user.upload(screen.getByLabelText("CSV file"), file);
-  await user.click(screen.getByRole("button", { name: "Preview CSV" }));
+  await user.upload(screen.getByLabelText("CSV or XLSX file"), file);
+  await user.click(screen.getByRole("button", { name: "Preview file" }));
 }
 
 describe("ImportJobsPanel", () => {
@@ -92,8 +92,8 @@ describe("ImportJobsPanel", () => {
     const user = userEvent.setup();
     render(<ImportJobsPanel onClose={vi.fn()} onImportComplete={vi.fn()} />);
 
-    expect(screen.getByLabelText("CSV file")).toHaveAttribute(
-      "accept", ".csv,text/csv",
+    expect(screen.getByLabelText("CSV or XLSX file")).toHaveAttribute(
+      "accept", ".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
     await chooseAndPreview(user);
     expect(screen.getByRole("button", { name: "Generating preview…" }))
@@ -107,8 +107,35 @@ describe("ImportJobsPanel", () => {
     expect(screen.getByText("1 Invalid")).toBeInTheDocument();
     expect(screen.getByText("Application URL already exists"))
       .toBeInTheDocument();
+    expect(screen.getByText("Already in CareerOS")).toBeInTheDocument();
     expect(screen.getByText("Missing position title")).toBeInTheDocument();
     expect(previewCsvImport).toHaveBeenCalledWith(expect.any(File));
+  });
+
+  it("shows true unknown warnings without system-header warning noise", async () => {
+    vi.mocked(previewCsvImport).mockResolvedValue({
+      ...response,
+      totalRows: 1,
+      createCount: 1,
+      reviewCount: 0,
+      duplicateCount: 0,
+      invalidCount: 0,
+      hasFileWarnings: true,
+      fileWarnings: [{
+        field: "Mystery Column",
+        message: "Unknown import header was ignored",
+      }],
+      rows: [row(2, "CREATE", true)],
+    });
+    const user = userEvent.setup();
+    render(<ImportJobsPanel onClose={vi.fn()} onImportComplete={vi.fn()} />);
+    await chooseAndPreview(user);
+
+    expect(await screen.findByText(
+      "Unknown import header was ignored: Mystery Column",
+    )).toBeInTheDocument();
+    expect(screen.queryByText(/job_id/)).not.toBeInTheDocument();
+    expect(screen.getByText("1 Ready")).toBeInTheDocument();
   });
 
   it("selects ready and review rows and allows selectable rows to toggle", async () => {
@@ -149,24 +176,25 @@ describe("ImportJobsPanel", () => {
     const replacement = new File(["Job Title\nEngineer"], "replacement.csv", {
       type: "text/csv",
     });
-    await user.upload(screen.getByLabelText("CSV file"), replacement);
+    await user.upload(screen.getByLabelText("CSV or XLSX file"), replacement);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Preview CSV" }));
+    await user.click(screen.getByRole("button", { name: "Preview file" }));
     expect(await screen.findByText("4 rows found")).toBeInTheDocument();
   });
 
-  it("rejects non-CSV files without sending a request", async () => {
+  it("accepts XLSX files", async () => {
+    vi.mocked(previewCsvImport).mockResolvedValue(response);
     const user = userEvent.setup();
     render(<ImportJobsPanel onClose={vi.fn()} onImportComplete={vi.fn()} />);
-    const input = screen.getByLabelText("CSV file") as HTMLInputElement;
+    const input = screen.getByLabelText("CSV or XLSX file") as HTMLInputElement;
     const file = new File(["data"], "jobs.xlsx", {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
     fireEvent.change(input, { target: { files: [file] } });
-    await user.click(screen.getByRole("button", { name: "Preview CSV" }));
+    await user.click(screen.getByRole("button", { name: "Preview file" }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent("Only CSV files");
-    expect(previewCsvImport).not.toHaveBeenCalled();
+    expect(previewCsvImport).toHaveBeenCalledWith(file);
+    expect(await screen.findByText("4 rows found")).toBeInTheDocument();
   });
 
   it("imports only selected eligible rows and completes the preview", async () => {
@@ -276,6 +304,6 @@ describe("ImportJobsPanel", () => {
       .toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Choose another file" }));
     expect(screen.queryByText("Import complete")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Preview CSV" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Preview file" })).toBeDisabled();
   });
 });

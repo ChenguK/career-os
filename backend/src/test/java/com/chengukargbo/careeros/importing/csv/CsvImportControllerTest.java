@@ -24,6 +24,7 @@ import com.chengukargbo.careeros.importing.persistence.ImportPersistenceRequest;
 import com.chengukargbo.careeros.importing.persistence.ImportPersistenceResponse;
 import com.chengukargbo.careeros.importing.persistence.ImportRowOutcomeStatus;
 import com.chengukargbo.careeros.importing.persistence.ImportRowPersistenceResult;
+import com.chengukargbo.careeros.importing.xlsx.XlsxImportPreviewService;
 
 @WebMvcTest(CsvImportController.class)
 class CsvImportControllerTest {
@@ -33,6 +34,9 @@ class CsvImportControllerTest {
 
     @MockitoBean
     private CsvImportPreviewService previewService;
+
+    @MockitoBean
+    private XlsxImportPreviewService xlsxPreviewService;
 
     @MockitoBean
     private ImportPersistenceService persistenceService;
@@ -58,6 +62,26 @@ class CsvImportControllerTest {
             .andExpect(jsonPath("$.reviewCount").value(1))
             .andExpect(jsonPath("$.duplicateCount").value(1))
             .andExpect(jsonPath("$.invalidCount").value(1));
+    }
+
+    @Test
+    void routesXlsxThroughTheSameReadOnlyPreviewContract() throws Exception {
+        when(xlsxPreviewService.preview(any(MultipartFile.class))).thenReturn(
+            new ImportPreviewResponse(
+                "jobs.xlsx", 1, 1, 0, 0, 0,
+                false, false, List.of(), List.of(), List.of()
+            )
+        );
+
+        mockMvc.perform(multipart("/api/applications/import/preview")
+                .file(new MockMultipartFile(
+                    "file", "jobs.xlsx",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    new byte[] { 1, 2, 3 }
+                )))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.filename").value("jobs.xlsx"))
+            .andExpect(jsonPath("$.createCount").value(1));
     }
 
     @Test

@@ -119,9 +119,13 @@ public class ImportPersistenceService {
             throw new BusinessValidationException("Import filename is required");
         }
         String filename = request.filename().trim();
+        String lowerFilename = filename.toLowerCase(Locale.ROOT);
         if (filename.length() > 255
-            || !filename.toLowerCase(Locale.ROOT).endsWith(".csv")) {
-            throw new BusinessValidationException("A valid CSV filename is required");
+            || (!lowerFilename.endsWith(".csv")
+                && !lowerFilename.endsWith(".xlsx"))) {
+            throw new BusinessValidationException(
+                "A valid CSV or XLSX filename is required"
+            );
         }
         if (request.rows().isEmpty()) {
             throw new BusinessValidationException(
@@ -137,7 +141,7 @@ public class ImportPersistenceService {
         for (SelectedImportRowRequest row : request.rows()) {
             if (row.rowNumber() < 2 || !rowNumbers.add(row.rowNumber())) {
                 throw new BusinessValidationException(
-                    "Selected CSV row numbers must be unique and at least 2"
+                    "Selected import row numbers must be unique and at least 2"
                 );
             }
         }

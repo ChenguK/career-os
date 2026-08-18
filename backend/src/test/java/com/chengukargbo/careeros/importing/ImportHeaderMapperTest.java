@@ -44,6 +44,36 @@ class ImportHeaderMapperTest {
     }
 
     @Test
+    void silentlyIgnoresRecognizedExportOnlyHeaders() {
+        HeaderMappingResult result = mapper.map(Map.ofEntries(
+            Map.entry("job_id", "1"),
+            Map.entry("company_id", "2"),
+            Map.entry("job_created_at", "2026-08-01T10:00:00Z"),
+            Map.entry("job_updated_at", "2026-08-02T10:00:00Z"),
+            Map.entry("application_id", "3"),
+            Map.entry("application_created_at", "2026-08-03T10:00:00Z"),
+            Map.entry("application_updated_at", "2026-08-04T10:00:00Z")
+        ));
+
+        assertThat(result.fields()).isEmpty();
+        assertThat(result.errors()).isEmpty();
+        assertThat(result.warnings()).isEmpty();
+    }
+
+    @Test
+    void ignoresOnlyKnownSystemHeadersWhileUnknownHeadersStillWarn() {
+        HeaderMappingResult result = mapper.map(Map.of(
+            "Job ID", "1",
+            "Future Internal Value", "value"
+        ));
+
+        assertThat(result.fields()).isEmpty();
+        assertThat(result.warnings()).singleElement()
+            .extracting(ImportIssue::field)
+            .isEqualTo("Future Internal Value");
+    }
+
+    @Test
     void rejectsDuplicateMappedHeaders() {
         Map<String, String> fields = new LinkedHashMap<>();
         fields.put("Company", "Acme");

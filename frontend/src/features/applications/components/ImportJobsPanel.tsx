@@ -20,7 +20,7 @@ interface ImportJobsPanelProps {
 const RESULT_LABELS = {
   CREATE: "Ready",
   REVIEW_WARNING: "Review",
-  SKIP_DUPLICATE: "Duplicate",
+  SKIP_DUPLICATE: "Already in CareerOS",
   INVALID: "Invalid",
 } as const;
 
@@ -48,7 +48,12 @@ function displaySalary(row: ImportPreviewRow): string {
 }
 
 function issues(row: ImportPreviewRow): string[] {
-  return [...row.errors, ...row.warnings].map((issue) => issue.message);
+  const all = [...row.errors, ...row.warnings];
+  const visible = row.proposedAction === "SKIP_DUPLICATE"
+    ? all.filter((issue) => issue.field !== "position_title"
+      || !issue.message.toLowerCase().includes("match another job"))
+    : all;
+  return visible.map((issue) => issue.message);
 }
 
 function safeWebUrl(value: string | null): string | null {
@@ -93,11 +98,12 @@ export default function ImportJobsPanel({
 
   async function handlePreview() {
     if (!file) {
-      setError("Choose a CSV file to preview.");
+      setError("Choose a CSV or XLSX file to preview.");
       return;
     }
-    if (!file.name.toLowerCase().endsWith(".csv")) {
-      setError("Only CSV files are supported in this version.");
+    const lowerName = file.name.toLowerCase();
+    if (!lowerName.endsWith(".csv") && !lowerName.endsWith(".xlsx")) {
+      setError("Only CSV and XLSX files are supported.");
       return;
     }
 
@@ -118,7 +124,7 @@ export default function ImportJobsPanel({
       setError(
         caughtError instanceof Error
           ? caughtError.message
-          : "The CSV preview could not be generated.",
+          : "The import preview could not be generated.",
       );
     } finally {
       setIsLoading(false);
@@ -201,7 +207,7 @@ export default function ImportJobsPanel({
       <div className="import-panel__header">
         <div>
           <h2 id="import-title">Import Jobs</h2>
-          <p>Upload a CSV to preview it. Excel/XLSX support is coming later.</p>
+          <p>Upload a CSV or Excel/XLSX file to preview it.</p>
         </div>
         <button type="button" onClick={onClose} aria-label="Close import preview">
           Close
@@ -213,11 +219,11 @@ export default function ImportJobsPanel({
 
       <div className="import-panel__picker">
         <label>
-          CSV file
+          CSV or XLSX file
           <input
             key={fileInputKey}
             type="file"
-            accept=".csv,text/csv"
+            accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             onChange={(event) => {
               setFile(event.target.files?.[0] ?? null);
               setPreview(null);
@@ -228,9 +234,17 @@ export default function ImportJobsPanel({
           />
         </label>
         <button type="button" disabled={!file || isLoading} onClick={handlePreview}>
-          {isLoading ? "Generating preview…" : "Preview CSV"}
+          {isLoading ? "Generating preview…" : "Preview file"}
         </button>
       </div>
+
+      {file && (
+        <p>
+          Selected: {file.name} ({file.name.toLowerCase().endsWith(".xlsx")
+            ? "XLSX"
+            : "CSV"})
+        </p>
+      )}
 
       {error && <p role="alert">{error}</p>}
 

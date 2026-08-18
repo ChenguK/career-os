@@ -1,4 +1,8 @@
-import { apiRequest } from "../../../shared/api/apiClient";
+import {
+  apiDownload,
+  apiRequest,
+  type ApiDownload,
+} from "../../../shared/api/apiClient";
 import type {
   Application,
   ApplicationInput,
@@ -23,6 +27,19 @@ export function getApplications(): Promise<Application[]> {
 export function getApplicationTracker(
   query: ApplicationTrackerQuery = {},
 ): Promise<ApplicationTrackerPage> {
+  const parameters = trackerParameters(query, true);
+  const encoded = parameters.toString();
+  const url = `/api/applications/tracker${
+    encoded ? `?${encoded}` : ""
+  }`;
+
+  return apiRequest<ApplicationTrackerPage>(url);
+}
+
+function trackerParameters(
+  query: ApplicationTrackerQuery,
+  includePagination: boolean,
+): URLSearchParams {
   const parameters = new URLSearchParams();
 
   function appendValues(
@@ -51,8 +68,9 @@ export function getApplicationTracker(
     followUpDateTo: query.followUpDateTo,
     sort: query.sort,
     direction: query.direction,
-    page: query.page,
-    size: query.size,
+    ...(includePagination
+      ? { page: query.page, size: query.size }
+      : {}),
   };
 
   Object.entries(scalarParameters).forEach(([name, value]) => {
@@ -61,12 +79,35 @@ export function getApplicationTracker(
     }
   });
 
-  const encoded = parameters.toString();
-  const url = `/api/applications/tracker${
-    encoded ? `?${encoded}` : ""
-  }`;
+  return parameters;
+}
 
-  return apiRequest<ApplicationTrackerPage>(url);
+export function exportApplicationTrackerCsv(
+  mode: "CURRENT_VIEW" | "ALL",
+  query: ApplicationTrackerQuery = {},
+): Promise<ApiDownload> {
+  const parameters = mode === "CURRENT_VIEW"
+    ? trackerParameters(query, false)
+    : new URLSearchParams();
+  parameters.set("mode", mode);
+
+  return apiDownload(
+    `/api/applications/tracker/export.csv?${parameters.toString()}`,
+  );
+}
+
+export function exportApplicationTrackerXlsx(
+  mode: "CURRENT_VIEW" | "ALL",
+  query: ApplicationTrackerQuery = {},
+): Promise<ApiDownload> {
+  const parameters = mode === "CURRENT_VIEW"
+    ? trackerParameters(query, false)
+    : new URLSearchParams();
+  parameters.set("mode", mode);
+
+  return apiDownload(
+    `/api/applications/tracker/export.xlsx?${parameters.toString()}`,
+  );
 }
 
 export function createApplication(

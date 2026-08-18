@@ -162,8 +162,8 @@ describe("ApplicationList", () => {
       }),
     );
 
-    expect(onEdit).toHaveBeenCalledWith(101);
-    expect(onDelete).toHaveBeenCalledWith(101);
+    expect(onEdit).toHaveBeenCalledWith(applicationRow);
+    expect(onDelete).toHaveBeenCalledWith(applicationRow);
   });
 
   it("targets the correct job when adding an application", async () => {

@@ -25,6 +25,11 @@ public class ImportHeaderMapper {
         "interview_two_at", "offer_at", "rejected_at", "application_notes"
     );
 
+    private static final Set<String> EXPORT_ONLY_HEADERS = Set.of(
+        "job_id", "company_id", "job_created_at", "job_updated_at",
+        "application_id", "application_created_at", "application_updated_at"
+    );
+
     private static final Map<String, String> ALIASES = Map.ofEntries(
         Map.entry("company", "company_name"),
         Map.entry("job_title", "position_title"),
@@ -45,7 +50,9 @@ public class ImportHeaderMapper {
                 ? normalizedHeader
                 : ALIASES.get(normalizedHeader);
 
-            if (canonical == null) {
+            if (EXPORT_ONLY_HEADERS.contains(normalizedHeader)) {
+                return;
+            } else if (canonical == null) {
                 warnings.add(new ImportIssue(
                     header,
                     "Unknown import header was ignored"

@@ -14,6 +14,18 @@ import org.springframework.test.util.ReflectionTestUtils;
 class ImportBatchMetadataServiceTest {
 
     @Test
+    void recordsXlsxTransportFormatFromFilename() {
+        ImportBatchRepository batches = mock(ImportBatchRepository.class);
+        ImportBatchRowRepository rows = mock(ImportBatchRowRepository.class);
+        when(batches.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ImportBatch batch = new ImportBatchMetadataService(batches, rows)
+            .create("career-tracker.XLSX", 2, 1);
+
+        assertThat(batch.getFormat()).isEqualTo("XLSX");
+    }
+
+    @Test
     void recordsSchemaFormatCountsCompletionAndRowOutcomes() {
         ImportBatchRepository batches = mock(ImportBatchRepository.class);
         ImportBatchRowRepository rows = mock(ImportBatchRowRepository.class);

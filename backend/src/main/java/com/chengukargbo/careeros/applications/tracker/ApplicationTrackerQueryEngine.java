@@ -36,12 +36,7 @@ public class ApplicationTrackerQueryEngine {
         List<ApplicationTrackerResponse> rows,
         ApplicationTrackerQuery query
     ) {
-        validate(query);
-
-        List<ApplicationTrackerResponse> filtered = rows.stream()
-            .filter(row -> matches(row, query))
-            .sorted(comparator(query))
-            .toList();
+        List<ApplicationTrackerResponse> filtered = executeAll(rows, query);
 
         long totalRows = filtered.size();
         int totalPages = totalRows == 0
@@ -57,6 +52,18 @@ public class ApplicationTrackerQueryEngine {
             totalRows,
             totalPages
         );
+    }
+
+    public List<ApplicationTrackerResponse> executeAll(
+        List<ApplicationTrackerResponse> rows,
+        ApplicationTrackerQuery query
+    ) {
+        validate(query);
+
+        return rows.stream()
+            .filter(row -> matches(row, query))
+            .sorted(comparator(query))
+            .toList();
     }
 
     private void validate(ApplicationTrackerQuery query) {

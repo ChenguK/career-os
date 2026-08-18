@@ -11,6 +11,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.chengukargbo.careeros.importing.persistence.ImportPersistenceRequest;
 import com.chengukargbo.careeros.importing.persistence.ImportPersistenceResponse;
 import com.chengukargbo.careeros.importing.persistence.ImportPersistenceService;
+import com.chengukargbo.careeros.importing.xlsx.XlsxImportPreviewService;
 
 @RestController
 @RequestMapping("/api/applications/import")
@@ -18,13 +19,16 @@ public class CsvImportController {
 
     private final CsvImportPreviewService previewService;
     private final ImportPersistenceService persistenceService;
+    private final XlsxImportPreviewService xlsxPreviewService;
 
     public CsvImportController(
         CsvImportPreviewService previewService,
-        ImportPersistenceService persistenceService
+        ImportPersistenceService persistenceService,
+        XlsxImportPreviewService xlsxPreviewService
     ) {
         this.previewService = previewService;
         this.persistenceService = persistenceService;
+        this.xlsxPreviewService = xlsxPreviewService;
     }
 
     @PostMapping(
@@ -34,7 +38,10 @@ public class CsvImportController {
     public ImportPreviewResponse preview(
         @RequestPart("file") MultipartFile file
     ) {
-        return previewService.preview(file);
+        String filename = file == null ? null : file.getOriginalFilename();
+        return filename != null && filename.toLowerCase().endsWith(".xlsx")
+            ? xlsxPreviewService.preview(file)
+            : previewService.preview(file);
     }
 
     @PostMapping

@@ -7,8 +7,8 @@ import type { RemoteType } from "../../jobs/types/job";
 interface ApplicationListProps {
   rows: ApplicationTrackerRow[];
   deletingId: number | null;
-  onEdit: (applicationId: number) => void;
-  onDelete: (applicationId: number) => Promise<void>;
+  onEdit: (row: ApplicationTrackerRow) => void;
+  onDelete: (row: ApplicationTrackerRow) => Promise<void>;
   onAddApplication: (jobOpportunityId: number) => void;
 }
 
@@ -164,9 +164,7 @@ export default function ApplicationList({
                           <button
                             type="button"
                             aria-label={`Edit application for ${row.positionTitle}`}
-                            onClick={() =>
-                              onEdit(row.applicationId!)
-                            }
+                            onClick={() => onEdit(row)}
                           >
                             Edit
                           </button>
@@ -176,9 +174,7 @@ export default function ApplicationList({
                             disabled={
                               deletingId === row.applicationId
                             }
-                            onClick={() =>
-                              void onDelete(row.applicationId!)
-                            }
+                            onClick={() => void onDelete(row)}
                           >
                             {deletingId === row.applicationId
                               ? "Deleting..."
@@ -186,15 +182,24 @@ export default function ApplicationList({
                           </button>
                         </>
                       ) : (
-                        <button
-                          type="button"
-                          aria-label={`Add application for ${row.positionTitle}`}
-                          onClick={() =>
-                            onAddApplication(row.jobOpportunityId)
-                          }
-                        >
-                          Add application
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            aria-label={`Edit job for ${row.positionTitle}`}
+                            onClick={() => onEdit(row)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Add application for ${row.positionTitle}`}
+                            onClick={() =>
+                              onAddApplication(row.jobOpportunityId)
+                            }
+                          >
+                            Add application
+                          </button>
+                        </>
                       )}
                     </div>
                   </td>

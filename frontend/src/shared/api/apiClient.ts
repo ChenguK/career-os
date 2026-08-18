@@ -35,3 +35,28 @@ export async function apiRequest<T>(
 
   return response.json() as Promise<T>;
 }
+
+export interface ApiDownload {
+  blob: Blob;
+  filename: string | null;
+}
+
+export async function apiDownload(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<ApiDownload> {
+  const response = await fetch(input, init);
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response));
+  }
+
+  const disposition = response.headers.get("Content-Disposition");
+  const filename = disposition?.match(/filename="?([^";]+)"?/i)?.[1]
+    ?? null;
+
+  return {
+    blob: await response.blob(),
+    filename,
+  };
+}

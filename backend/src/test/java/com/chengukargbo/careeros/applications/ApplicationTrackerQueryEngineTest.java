@@ -203,6 +203,19 @@ class ApplicationTrackerQueryEngineTest {
     }
 
     @Test
+    void executesTheSameQueryWithoutPaginationForExports() {
+        ApplicationTrackerQuery query = new ApplicationTrackerQuery(
+            "engineer", List.of(), List.of(), List.of(), null,
+            null, null, null, null, null, null,
+            "positionTitle", "desc", 9, 1
+        );
+
+        assertThat(engine.executeAll(rows, query))
+            .extracting(ApplicationTrackerResponse::jobOpportunityId)
+            .containsExactly(1L, 3L);
+    }
+
+    @Test
     void normalizesInvalidPageAndEnforcesMaximumPageSize() {
         ApplicationTrackerQuery query = page(-2, 500);
         ApplicationTrackerPageResponse result = execute(query);
