@@ -63,7 +63,7 @@ class ImportRowPersistenceServiceTest {
         when(jobService.create(any())).thenReturn(jobResponse);
         ApplicationResponse applicationResponse = mock(ApplicationResponse.class);
         when(applicationResponse.id()).thenReturn(30L);
-        when(applicationService.create(any())).thenReturn(applicationResponse);
+        when(applicationService.createFromImport(any())).thenReturn(applicationResponse);
     }
 
     @Test
@@ -94,7 +94,7 @@ class ImportRowPersistenceServiceTest {
         assertThat(jobCaptor.getValue().notes()).isEqualTo("job note");
         ArgumentCaptor<ApplicationRequest> appCaptor =
             ArgumentCaptor.forClass(ApplicationRequest.class);
-        verify(applicationService).create(appCaptor.capture());
+        verify(applicationService).createFromImport(appCaptor.capture());
         assertThat(appCaptor.getValue().status())
             .isEqualTo(ApplicationStatus.SAVED);
         assertThat(appCaptor.getValue().notes()).isEqualTo("application note");
@@ -162,7 +162,7 @@ class ImportRowPersistenceServiceTest {
 
     @Test
     void applicationFailureEscapesTheAtomicRowTransaction() {
-        when(applicationService.create(any()))
+        when(applicationService.createFromImport(any()))
             .thenThrow(new RuntimeException("application failed"));
         assertThatThrownBy(() -> service.persist(row(Map.of(
             "position_title", "Engineer"

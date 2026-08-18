@@ -13,6 +13,7 @@ import com.chengukargbo.careeros.companies.CompanyRepository;
 import com.chengukargbo.careeros.jobs.dto.JobOpportunityRequest;
 import com.chengukargbo.careeros.jobs.dto.JobOpportunityResponse;
 import com.chengukargbo.careeros.common.exception.BusinessValidationException;
+import com.chengukargbo.careeros.common.url.ApplicationUrlService;
 
 @Service
 @Transactional
@@ -20,13 +21,16 @@ public class JobOpportunityService {
 
     private final JobOpportunityRepository jobRepository;
     private final CompanyRepository companyRepository;
+    private final ApplicationUrlService urlService;
 
     public JobOpportunityService(
         JobOpportunityRepository jobRepository,
-        CompanyRepository companyRepository
+        CompanyRepository companyRepository,
+        ApplicationUrlService urlService
     ) {
         this.jobRepository = jobRepository;
         this.companyRepository = companyRepository;
+        this.urlService = urlService;
     }
 
     public JobOpportunityResponse create(
@@ -60,6 +64,9 @@ public class JobOpportunityService {
             request.matchScore(),
             normalize(request.jobDescription()),
             normalize(request.notes())
+        );
+        job.setNormalizedApplicationUrl(
+            urlService.normalize(request.applicationUrl())
         );
 
         JobOpportunity savedJob = jobRepository.saveAndFlush(job);
@@ -100,6 +107,9 @@ public class JobOpportunityService {
             request.matchScore(),
             normalize(request.jobDescription()),
             normalize(request.notes())
+        );
+        job.setNormalizedApplicationUrl(
+            urlService.normalize(request.applicationUrl())
         );
 
         JobOpportunity updatedJob =

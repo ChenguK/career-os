@@ -45,6 +45,25 @@ export default function AppLayout() {
         >
           Companies
         </NavLink>
+
+        <NavLink
+          to="/profile"
+          className={({ isActive }) =>
+            isActive ? "active" : undefined
+          }
+        >
+          Applicant Profile
+        </NavLink>
+
+        <NavLink
+          to="/approved-answers"
+          className={({ isActive }) =>
+            isActive ? "active" : undefined
+          }
+        >
+          Approved Answers
+        </NavLink>
+        <NavLink to="/questions" className={({ isActive }) => isActive ? "active" : undefined}>Questions</NavLink>
       </nav>
 
       <Outlet />

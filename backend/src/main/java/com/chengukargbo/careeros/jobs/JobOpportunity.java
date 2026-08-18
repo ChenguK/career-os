@@ -63,6 +63,9 @@ public class JobOpportunity {
     @Column(name = "application_url", length = 1000)
     private String applicationUrl;
 
+    @Column(name = "normalized_application_url", length = 1000)
+    private String normalizedApplicationUrl;
+
     @Column(length = 150)
     private String source;
 
@@ -230,6 +233,14 @@ public class JobOpportunity {
 
     public String getApplicationUrl() {
         return applicationUrl;
+    }
+
+    public String getNormalizedApplicationUrl() {
+        return normalizedApplicationUrl;
+    }
+
+    public void setNormalizedApplicationUrl(String normalizedApplicationUrl) {
+        this.normalizedApplicationUrl = normalizedApplicationUrl;
     }
 
     public String getSource() {

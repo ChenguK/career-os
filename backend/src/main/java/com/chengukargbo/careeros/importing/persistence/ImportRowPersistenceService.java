@@ -82,7 +82,7 @@ public class ImportRowPersistenceService {
             row.jobNotes()
         ));
 
-        ApplicationResponse application = applicationService.create(
+        ApplicationResponse application = applicationService.createFromImport(
             new ApplicationRequest(
                 job.id(),
                 row.status() == null ? ApplicationStatus.SAVED : row.status(),

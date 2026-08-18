@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -173,6 +174,26 @@ class ApplicationTrackerServiceTest {
 
         verify(jobRepository)
             .findAllByOrderByPriorityAscCreatedAtDescIdDesc();
+    }
+
+    @Test
+    void resolvesOneCanonicalRowWithoutDependingOnTrackerPagination() {
+        JobOpportunity job = job(
+            77L, null, "Focused Engineer", (short) 2
+        );
+        Application application = application(177L, job, "Focused notes");
+        when(jobRepository.findById(77L)).thenReturn(Optional.of(job));
+        when(applicationRepository.findByJobOpportunityId(77L))
+            .thenReturn(Optional.of(application));
+
+        ApplicationTrackerResponse row =
+            trackerService.findByJobOpportunityId(77L);
+
+        assertThat(row.jobOpportunityId()).isEqualTo(77L);
+        assertThat(row.applicationId()).isEqualTo(177L);
+        assertThat(row.applicationNotes()).isEqualTo("Focused notes");
+        verify(jobRepository).findById(77L);
+        verify(applicationRepository).findByJobOpportunityId(77L);
     }
 
     private Company company(Long id, String name) {

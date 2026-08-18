@@ -1,5 +1,7 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter, useLocation } from "react-router-dom";
 
 import DashboardPage from "./DashboardPage";
 import { getApplications } from "../../applications/api/applicationsApi";
@@ -21,6 +23,22 @@ vi.mock("../../companies/api/companiesApi", () => ({
 const mockedGetApplications = vi.mocked(getApplications);
 const mockedGetJobs = vi.mocked(getJobs);
 const mockedGetCompanies = vi.mocked(getCompanies);
+
+function LocationProbe() {
+  const location = useLocation();
+  return <output data-testid="location-state">
+    {JSON.stringify({ pathname: location.pathname, state: location.state })}
+  </output>;
+}
+
+function renderDashboard() {
+  return render(
+    <MemoryRouter initialEntries={["/dashboard"]}>
+      <DashboardPage />
+      <LocationProbe />
+    </MemoryRouter>,
+  );
+}
 
 describe("DashboardPage", () => {
   beforeEach(() => {
@@ -184,7 +202,7 @@ describe("DashboardPage", () => {
       },
     ]);
 
-    render(<DashboardPage />);
+    renderDashboard();
 
     expect(
       await screen.findByRole("heading", { name: "Dashboard" }),
@@ -270,7 +288,7 @@ describe("DashboardPage", () => {
     mockedGetJobs.mockResolvedValue([]);
     mockedGetCompanies.mockResolvedValue([]);
 
-    render(<DashboardPage />);
+    renderDashboard();
 
     expect(
       await screen.findByRole("heading", {
@@ -325,7 +343,7 @@ describe("DashboardPage", () => {
         mockedGetJobs.mockResolvedValue([]);
         mockedGetCompanies.mockResolvedValue([]);
 
-        render(<DashboardPage />);
+        renderDashboard();
 
         expect(
         await screen.findByRole("heading", {
@@ -479,7 +497,7 @@ describe("DashboardPage", () => {
 
     mockedGetCompanies.mockResolvedValue([]);
 
-    render(<DashboardPage />);
+    renderDashboard();
 
     expect(
         await screen.findByRole("heading", {
@@ -516,12 +534,80 @@ describe("DashboardPage", () => {
     ).toBeInTheDocument();
     });
 
+  it("carries allow-listed tracker handoffs for every Dashboard action", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    mockedGetApplications.mockResolvedValue([
+      {
+        id: 10, jobOpportunityId: 1, positionTitle: "Platform Engineer",
+        companyId: 1, companyName: "GitHub", status: "PREPARING",
+        resumeVersion: null, coverLetterNeeded: false, portfolioLink: null,
+        githubLink: null, projectsToHighlight: null, skillsToEmphasize: null,
+        interviewTopics: null, recruiterName: null, recruiterEmail: null,
+        applicationDate: null, followUpDate: "2026-08-08",
+        phoneScreenAt: "2026-08-12T14:00:00Z", interviewOneAt: null,
+        interviewTwoAt: null, offerAt: null, rejectedAt: null, notes: null,
+        createdAt: "2026-08-01T12:00:00Z",
+        updatedAt: "2026-08-01T12:00:00Z",
+      },
+    ]);
+    mockedGetJobs.mockResolvedValue([
+      {
+        id: 1, companyId: 1, companyName: "GitHub",
+        positionTitle: "Platform Engineer", department: null,
+        location: "Remote", remoteType: "REMOTE", employmentType: null,
+        salaryMin: null, salaryMax: null, salaryCurrency: "USD",
+        salaryNotes: null, applicationUrl: null, source: null,
+        datePosted: null, closingDate: null, priority: 1, matchScore: null,
+        jobDescription: null, notes: null,
+        createdAt: "2026-08-01T12:00:00Z",
+        updatedAt: "2026-08-01T12:00:00Z",
+      },
+      {
+        id: 2, companyId: null, companyName: null,
+        positionTitle: "Unapplied Engineer", department: null,
+        location: null, remoteType: "UNKNOWN", employmentType: null,
+        salaryMin: null, salaryMax: null, salaryCurrency: "USD",
+        salaryNotes: null, applicationUrl: null, source: null,
+        datePosted: null, closingDate: null, priority: 1, matchScore: null,
+        jobDescription: null, notes: null,
+        createdAt: "2026-08-01T12:00:00Z",
+        updatedAt: "2026-08-01T12:00:00Z",
+      },
+    ]);
+    mockedGetCompanies.mockResolvedValue([]);
+
+    renderDashboard();
+    await screen.findByRole("link", { name: "Open follow-up" });
+
+    const expected = [
+      ["Open follow-up", "FOLLOW_UP", 1, 10],
+      ["Finish application", "FINISH_APPLICATION", 1, 10],
+      ["Prepare for interview", "PREPARE_INTERVIEW", 1, 10],
+      ["Start application", "APPLY", 2, undefined],
+    ] as const;
+
+    for (const [name, action, jobOpportunityId, applicationId] of expected) {
+      await user.click(screen.getByRole("link", { name }));
+      expect(JSON.parse(screen.getByTestId("location-state").textContent ?? ""))
+        .toEqual({
+          pathname: "/applications",
+          state: {
+            dashboardHandoff: {
+              action,
+              jobOpportunityId,
+              ...(applicationId === undefined ? {} : { applicationId }),
+            },
+          },
+        });
+    }
+  });
+
   it("shows dashboard empty states", async () => {
     mockedGetApplications.mockResolvedValue([]);
     mockedGetJobs.mockResolvedValue([]);
     mockedGetCompanies.mockResolvedValue([]);
 
-    render(<DashboardPage />);
+    renderDashboard();
 
     expect(
       await screen.findByText(
@@ -544,7 +630,7 @@ describe("DashboardPage", () => {
     mockedGetJobs.mockResolvedValue([]);
     mockedGetCompanies.mockResolvedValue([]);
 
-    render(<DashboardPage />);
+    renderDashboard();
 
     expect(
       await screen.findByRole("alert"),

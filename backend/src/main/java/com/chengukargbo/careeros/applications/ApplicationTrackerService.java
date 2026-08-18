@@ -12,6 +12,8 @@ import com.chengukargbo.careeros.applications.dto.ApplicationTrackerResponse;
 import com.chengukargbo.careeros.applications.tracker.ApplicationTrackerPageResponse;
 import com.chengukargbo.careeros.applications.tracker.ApplicationTrackerQuery;
 import com.chengukargbo.careeros.applications.tracker.ApplicationTrackerQueryEngine;
+import com.chengukargbo.careeros.jobs.JobOpportunity;
+import com.chengukargbo.careeros.jobs.JobOpportunityNotFoundException;
 import com.chengukargbo.careeros.jobs.JobOpportunityRepository;
 
 @Service
@@ -59,5 +61,19 @@ public class ApplicationTrackerService {
         ApplicationTrackerQuery query
     ) {
         return queryEngine.execute(findAll(), query);
+    }
+
+    public ApplicationTrackerResponse findByJobOpportunityId(
+        Long jobOpportunityId
+    ) {
+        JobOpportunity job = jobRepository.findById(jobOpportunityId)
+            .orElseThrow(
+                () -> new JobOpportunityNotFoundException(jobOpportunityId)
+            );
+        Application application = applicationRepository
+            .findByJobOpportunityId(jobOpportunityId)
+            .orElse(null);
+
+        return ApplicationTrackerResponse.from(job, application);
     }
 }

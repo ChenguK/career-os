@@ -2,13 +2,37 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   getApplicationTracker,
+  getApplicationTrackerRow,
   exportApplicationTrackerCsv,
   exportApplicationTrackerXlsx,
   getImportBatch,
   getImportHistory,
   persistCsvImport,
   previewCsvImport,
+  getApplicationPreparation,
+  getApplicationPreparationEvents,
+  preparationAction,
 } from "./applicationsApi";
+
+describe("application preparation API", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("loads capability/events and sends action requests to scoped routes", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true, status: 200, json: async () => ({ capability: "SESSION_ONLY", session: null }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getApplicationPreparation(12);
+    await getApplicationPreparationEvents(12);
+    await preparationAction(12, "initialize");
+
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/applications/12/preparation");
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/applications/12/preparation/events");
+    expect(fetchMock.mock.calls[2][0]).toBe("/api/applications/12/preparation/initialize");
+    expect(fetchMock.mock.calls[2][1]).toEqual(expect.objectContaining({ method: "POST" }));
+  });
+});
 
 describe("getApplicationTracker", () => {
   afterEach(() => {
@@ -78,6 +102,26 @@ describe("getApplicationTracker", () => {
     expect(parameters.get("direction")).toBe("desc");
     expect(parameters.get("page")).toBe("1");
     expect(parameters.get("size")).toBe("25");
+  });
+});
+
+describe("getApplicationTrackerRow", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("loads one canonical row by stable job opportunity ID", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ jobOpportunityId: 42 }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getApplicationTrackerRow(42);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/applications/tracker/jobs/42",
+      undefined,
+    );
   });
 });
 

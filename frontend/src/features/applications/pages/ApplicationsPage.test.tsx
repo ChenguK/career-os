@@ -1,10 +1,17 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import {
+  render as testingLibraryRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
+import type { ReactElement } from "react";
 
 import ApplicationsPage from "./ApplicationsPage";
 import {
   getApplicationTracker,
+  getApplicationTrackerRow,
   exportApplicationTrackerCsv,
   exportApplicationTrackerXlsx,
   getApplications,
@@ -25,7 +32,21 @@ vi.mock("../api/applicationsApi", () => ({
   exportApplicationTrackerCsv: vi.fn(),
   exportApplicationTrackerXlsx: vi.fn(),
   getApplicationTracker: vi.fn(),
+  getApplicationTrackerRow: vi.fn(),
   getApplications: vi.fn(),
+  getApplicationStatusHistory: vi.fn().mockResolvedValue([]),
+  getApplicationAutomation: vi.fn().mockResolvedValue({
+    id: 1, applicationId: 1, state: "NOT_APPROVED",
+    submissionMode: "PREPARE_ONLY", atsType: "UNKNOWN",
+    unresolvedRequiredCount: 0, needsReviewCount: 0, blockerCount: 0,
+    blockReason: null, approvedForPrepAt: null, readyForReviewAt: null,
+    approvedToSubmitAt: null, updatedAt: "2026-08-18T12:00:00Z",
+  }),
+  automationAction: vi.fn(),
+  setApplicationAtsType: vi.fn(),
+  getApplicationPreparation: vi.fn().mockResolvedValue({ capability: "SESSION_ONLY", session: null }),
+  getApplicationPreparationEvents: vi.fn().mockResolvedValue([]),
+  preparationAction: vi.fn(),
   persistCsvImport: vi.fn(),
   previewCsvImport: vi.fn(),
   updateApplication: vi.fn(),
@@ -100,6 +121,25 @@ const application: Application = {
   createdAt: "2026-08-07T10:00:00Z",
   updatedAt: "2026-08-07T10:00:00Z",
 };
+
+function render(ui: ReactElement) {
+  return testingLibraryRender(
+    <MemoryRouter initialEntries={["/applications"]}>
+      {ui}
+    </MemoryRouter>,
+  );
+}
+
+function renderHandoff(state: unknown) {
+  return testingLibraryRender(
+    <MemoryRouter initialEntries={[{
+      pathname: "/applications",
+      state,
+    }]}>
+      <ApplicationsPage />
+    </MemoryRouter>,
+  );
+}
 
 function trackerRow(
   sourceJob: JobOpportunity,
@@ -192,6 +232,9 @@ describe("ApplicationsPage", () => {
       totalRows: 2,
       totalPages: 1,
     });
+    vi.mocked(getApplicationTrackerRow).mockResolvedValue(
+      trackerRow(job, application),
+    );
     vi.stubGlobal("scrollTo", vi.fn());
     vi.mocked(exportApplicationTrackerCsv).mockResolvedValue({
       blob: new Blob(["csv"]),
@@ -669,5 +712,123 @@ describe("ApplicationsPage", () => {
     expect(screen.getByLabelText("Direction")).toHaveValue("desc");
     expect(updateJob).not.toHaveBeenCalled();
     expect(updateApplication).not.toHaveBeenCalled();
+  });
+
+  it("opens Add Application for an APPLY handoff to a job-only row off page 1", async () => {
+    vi.mocked(getApplicationTracker).mockResolvedValue({
+      content: [trackerRow(job, application)],
+      page: 0,
+      size: 25,
+      totalRows: 26,
+      totalPages: 2,
+    });
+    vi.mocked(getApplicationTrackerRow).mockResolvedValue(
+      trackerRow(jobWithoutApplication, null),
+    );
+
+    renderHandoff({
+      dashboardHandoff: {
+        action: "APPLY",
+        jobOpportunityId: 2,
+      },
+    });
+
+    await waitFor(() => {
+      expect(getApplicationTrackerRow).toHaveBeenCalledWith(2);
+      expect(screen.getByLabelText("Job opportunity")).toHaveValue("2");
+    });
+    expect(screen.queryByRole("heading", {
+      name: "Edit Operations Engineer",
+    })).not.toBeInTheDocument();
+  });
+
+  it("opens the existing editor for an APPLY handoff when an Application exists", async () => {
+    renderHandoff({
+      dashboardHandoff: {
+        action: "APPLY",
+        jobOpportunityId: 1,
+      },
+    });
+
+    expect(await screen.findByRole("heading", {
+      name: "Edit Platform Engineer",
+    })).toBeInTheDocument();
+    expect(screen.getByLabelText("Application Details editor"))
+      .toHaveFocus();
+  });
+
+  it.each([
+    ["FINISH_APPLICATION", "Application Details editor", null],
+    ["FOLLOW_UP", "Follow-up date", "followUpDate"],
+    ["PREPARE_INTERVIEW", "Interview topics", "interviewTopics"],
+  ])("focuses the intended editor field for %s", async (
+    action,
+    label,
+    fieldName,
+  ) => {
+    renderHandoff({
+      dashboardHandoff: {
+        action,
+        jobOpportunityId: 1,
+        applicationId: 101,
+      },
+    });
+
+    const target = await screen.findByLabelText(label);
+    await waitFor(() => {
+      if (fieldName === null) {
+        expect(target).toHaveFocus();
+      } else {
+        expect(document.activeElement).toHaveAttribute("name", fieldName);
+      }
+    });
+  });
+
+  it("falls back safely when the Dashboard job was deleted", async () => {
+    vi.mocked(getApplicationTrackerRow).mockRejectedValue(
+      new Error("Job opportunity 404 was not found"),
+    );
+    renderHandoff({
+      dashboardHandoff: {
+        action: "APPLY",
+        jobOpportunityId: 404,
+      },
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "job no longer exists",
+    );
+    expect(screen.getByRole("table")).toBeInTheDocument();
+  });
+
+  it("does not open a different Application when a handoff is stale", async () => {
+    renderHandoff({
+      dashboardHandoff: {
+        action: "FOLLOW_UP",
+        jobOpportunityId: 1,
+        applicationId: 999,
+      },
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "application that no longer exists",
+    );
+    expect(screen.queryByRole("heading", {
+      name: "Edit Platform Engineer",
+    })).not.toBeInTheDocument();
+    expect(screen.getByRole("table")).toBeInTheDocument();
+  });
+
+  it("ignores non-allow-listed handoff actions and keeps normal tracker behavior", async () => {
+    renderHandoff({
+      dashboardHandoff: {
+        action: "DELETE_EVERYTHING",
+        jobOpportunityId: 1,
+      },
+    });
+
+    expect(await screen.findByRole("table")).toBeInTheDocument();
+    expect(getApplicationTrackerRow).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

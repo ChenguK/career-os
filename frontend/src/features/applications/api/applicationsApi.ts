@@ -10,6 +10,7 @@ import type {
 import type {
   ApplicationTrackerPage,
   ApplicationTrackerQuery,
+  ApplicationTrackerRow,
 } from "../types/applicationTracker";
 import type {
   ImportPersistenceRequest,
@@ -24,6 +25,79 @@ export function getApplications(): Promise<Application[]> {
   return apiRequest<Application[]>("/api/applications");
 }
 
+export interface ApplicationStatusHistoryEvent {
+  id: number;
+  applicationId: number;
+  previousStatus: string | null;
+  newStatus: string;
+  occurredAt: string;
+  source: "USER" | "IMPORT" | "SYSTEM" | "AUTOMATION";
+  note: string | null;
+  createdAt: string;
+}
+
+export interface ApplicationAutomation {
+  id: number; applicationId: number;
+  state: "NOT_APPROVED" | "APPROVED_FOR_PREP" | "NEEDS_ANSWERS" | "READY_FOR_REVIEW" | "APPROVED_TO_SUBMIT" | "BLOCKED";
+  submissionMode: "PREPARE_ONLY" | "REQUIRE_REVIEW_BEFORE_SUBMIT";
+  atsType: "GREENHOUSE" | "LEVER" | "ASHBY" | "WORKDAY" | "ICIMS" | "TALEO" | "CUSTOM" | "UNKNOWN";
+  unresolvedRequiredCount: number; needsReviewCount: number; blockerCount: number;
+  blockReason: string | null; approvedForPrepAt: string | null;
+  readyForReviewAt: string | null; approvedToSubmitAt: string | null; updatedAt: string;
+}
+
+export function getApplicationAutomation(id: number): Promise<ApplicationAutomation> {
+  return apiRequest<ApplicationAutomation>(`/api/applications/${id}/automation`);
+}
+export function automationAction(id: number, action: "approve-prep" | "mark-ready" | "approve-submit" | "revoke"): Promise<ApplicationAutomation> {
+  return apiRequest<ApplicationAutomation>(`/api/applications/${id}/automation/${action}`, { method: "POST" });
+}
+export function setApplicationAtsType(id: number, atsType: ApplicationAutomation["atsType"]): Promise<ApplicationAutomation> {
+  return apiRequest<ApplicationAutomation>(`/api/applications/${id}/automation/ats-type`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ atsType }) });
+}
+
+export type PreparationCapability = "NONE" | "SESSION_ONLY" | "INSPECTION" |
+  "FIELD_PREPARATION" | "READY_FOR_REVIEW";
+export type PreparationSessionState = "INITIALIZED" | "OPENING" |
+  "COLLECTING_QUESTIONS" | "WAITING_FOR_USER" | "PREPARING_FIELDS" |
+  "READY_FOR_REVIEW" | "FAILED" | "CANCELLED";
+export interface PreparationSession {
+  id: number; applicationId: number; formTargetId: number;
+  previousSessionId: number | null; state: PreparationSessionState;
+  normalizedFormUrl: string; startedAt: string; lastProgressAt: string;
+  completedAt: string | null; createdAt: string; updatedAt: string;
+  currentPage?: string | null; currentQuestion?: string | null;
+  checkpoint?: string | null; snapshotHash?: string | null;
+  resumeState?: PreparationSessionState | null; pausedAt?: string | null;
+}
+export interface ApplicationPreparation {
+  capability: PreparationCapability;
+  session: PreparationSession | null;
+}
+export interface PreparationSessionEvent {
+  id: number; sessionId: number; eventType: string; timestamp: string;
+  retryable: boolean; safeUserMessage: string;
+  pageKey: string | null; questionKey: string | null;
+}
+
+export function getApplicationPreparation(id: number): Promise<ApplicationPreparation> {
+  return apiRequest<ApplicationPreparation>(`/api/applications/${id}/preparation`);
+}
+export function getApplicationPreparationEvents(id: number): Promise<PreparationSessionEvent[]> {
+  return apiRequest<PreparationSessionEvent[]>(`/api/applications/${id}/preparation/events`);
+}
+export function preparationAction(id: number, action: "initialize" | "cancel" | "retry" | "resume"): Promise<ApplicationPreparation> {
+  return apiRequest<ApplicationPreparation>(`/api/applications/${id}/preparation/${action}`, { method: "POST" });
+}
+
+export function getApplicationStatusHistory(
+  applicationId: number,
+): Promise<ApplicationStatusHistoryEvent[]> {
+  return apiRequest<ApplicationStatusHistoryEvent[]>(
+    `/api/applications/${applicationId}/history`,
+  );
+}
+
 export function getApplicationTracker(
   query: ApplicationTrackerQuery = {},
 ): Promise<ApplicationTrackerPage> {
@@ -34,6 +108,14 @@ export function getApplicationTracker(
   }`;
 
   return apiRequest<ApplicationTrackerPage>(url);
+}
+
+export function getApplicationTrackerRow(
+  jobOpportunityId: number,
+): Promise<ApplicationTrackerRow> {
+  return apiRequest<ApplicationTrackerRow>(
+    `/api/applications/tracker/jobs/${jobOpportunityId}`,
+  );
 }
 
 function trackerParameters(

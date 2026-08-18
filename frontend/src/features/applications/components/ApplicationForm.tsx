@@ -22,6 +22,10 @@ interface ApplicationFormProps {
     input: ApplicationInput,
   ) => Promise<Application>;
   onCancel?: () => void;
+  initialFocusField?:
+    | "jobOpportunityId"
+    | "followUpDate"
+    | "interviewTopics";
 }
 
 function toApiDateTime(value: string): string {
@@ -40,6 +44,7 @@ export default function ApplicationForm({
   isEditing = false,
   onSubmit,
   onCancel,
+  initialFocusField,
 }: ApplicationFormProps) {
   const [form, setForm] =
     useState<ApplicationInput>(initialValues);
@@ -148,6 +153,7 @@ export default function ApplicationForm({
             onChange={handleJobChange}
             disabled={isEditing}
             required
+            autoFocus={initialFocusField === "jobOpportunityId"}
           >
             <option value="">Select a job</option>
 
@@ -262,6 +268,7 @@ export default function ApplicationForm({
             name="interviewTopics"
             value={form.interviewTopics}
             onChange={handleTextChange}
+            autoFocus={initialFocusField === "interviewTopics"}
           />
         </label>
 
@@ -306,6 +313,7 @@ export default function ApplicationForm({
               type="date"
               value={form.followUpDate}
               onChange={handleTextChange}
+              autoFocus={initialFocusField === "followUpDate"}
             />
           </label>
         </div>

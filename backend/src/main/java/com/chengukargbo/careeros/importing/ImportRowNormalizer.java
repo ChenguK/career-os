@@ -162,13 +162,19 @@ public class ImportRowNormalizer {
             ));
         }
 
+        String normalizedUrl = null;
+        try {
+            normalizedUrl = urlNormalizer.normalize(values.applicationUrl());
+        } catch (com.chengukargbo.careeros.common.exception.BusinessValidationException exception) {
+            errors.add(new ImportIssue("application_url", exception.getMessage()));
+        }
         boolean valid = errors.isEmpty();
         return new ImportRowResult(
             rowNumber,
             values,
             errors,
             warnings,
-            urlNormalizer.normalize(values.applicationUrl()),
+            normalizedUrl,
             null,
             List.of(),
             valid ? ImportProposedAction.CREATE : ImportProposedAction.INVALID,

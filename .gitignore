@@ -11,6 +11,12 @@ frontend/node_modules/
 frontend/dist/
 frontend/coverage/
 
+# Browser worker
+careeros-worker/node_modules/
+careeros-worker/dist/
+careeros-worker/coverage/
+careeros-worker/.env
+
 # Java and Maven
 backend/target/
 *.class

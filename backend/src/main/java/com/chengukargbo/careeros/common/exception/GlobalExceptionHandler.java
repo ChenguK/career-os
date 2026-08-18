@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import com.chengukargbo.careeros.applications.ApplicationNotFoundException;
+import com.chengukargbo.careeros.answers.ApprovedAnswerNotFoundException;
 import com.chengukargbo.careeros.companies.CompanyNotFoundException;
 import com.chengukargbo.careeros.jobs.JobOpportunityNotFoundException;
 import com.chengukargbo.careeros.importing.history.ImportBatchNotFoundException;
@@ -46,6 +47,18 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ApplicationNotFoundException.class)
     public ResponseEntity<ApiError> handleApplicationNotFound(
         ApplicationNotFoundException exception,
+        HttpServletRequest request
+    ) {
+        return buildError(
+            HttpStatus.NOT_FOUND,
+            exception.getMessage(),
+            request.getRequestURI()
+        );
+    }
+
+    @ExceptionHandler(ApprovedAnswerNotFoundException.class)
+    public ResponseEntity<ApiError> handleApprovedAnswerNotFound(
+        ApprovedAnswerNotFoundException exception,
         HttpServletRequest request
     ) {
         return buildError(

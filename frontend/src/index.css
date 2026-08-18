@@ -33,6 +33,52 @@ button {
   padding: 2rem 0 4rem;
 }
 
+.applicant-profile-page {
+  width: min(900px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 2rem 0 4rem;
+}
+
+.applicant-profile-form {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.applicant-profile-form fieldset,
+.profile-verification {
+  display: grid;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: white;
+  border: 1px solid #d9e2ec;
+  border-radius: 0.75rem;
+}
+
+.applicant-profile-form__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.applicant-profile-form label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.applicant-profile-form input,
+.applicant-profile-form select {
+  width: 100%;
+  padding: 0.7rem;
+  border: 1px solid #bcccdc;
+  border-radius: 0.4rem;
+}
+
+.applicant-profile-form button,
+.profile-verification button {
+  justify-self: start;
+  padding: 0.7rem 1rem;
+}
+
 .companies-page > header {
   margin-bottom: 2rem;
 }
@@ -476,6 +522,95 @@ button {
   margin: 0 auto;
   padding: 2rem 0 4rem;
 }
+
+.approved-answers-page {
+  width: min(1100px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 2rem 0 4rem;
+}
+
+.approved-answer-form,
+.approved-answer-list article {
+  padding: 1.25rem;
+  border: 1px solid #d9e2ec;
+  border-radius: 0.75rem;
+  background: white;
+}
+
+.approved-answer-form {
+  display: grid;
+  gap: 1rem;
+  margin: 2rem 0;
+}
+
+.approved-answer-form label:not(.checkbox-label) {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.approved-answer-form input,
+.approved-answer-form select,
+.approved-answer-form textarea {
+  padding: 0.65rem;
+  border: 1px solid #bcccdc;
+  border-radius: 0.4rem;
+}
+
+.approved-answer-form textarea {
+  min-height: 5rem;
+}
+
+.checkbox-label,
+.approved-answer-actions,
+.approved-answer-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.approved-answer-actions {
+  flex-wrap: wrap;
+}
+
+.approved-answer-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.approved-answer-card__header {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.approved-answer-card__header h3 {
+  margin-top: 0;
+}
+
+.answer-authority-warning {
+  padding: 0.75rem;
+  background: #fff7ed;
+  border-left: 4px solid #c2410c;
+}
+
+.status-history {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  border: 1px solid #d9e2ec;
+  border-radius: 0.75rem;
+  background: #f8fafc;
+}
+
+.status-history ol {
+  display: grid;
+  gap: 0.75rem;
+  padding-left: 1.5rem;
+}
+
+.status-history li span {
+  margin-left: 0.75rem;
+  color: #52606d;
+}
+.questions-page{width:min(1100px,calc(100% - 2rem));margin:0 auto;padding:2rem 0 4rem}.likely-questions,.question-group,.question-group article{display:grid;gap:.75rem;padding:1rem;margin:1rem 0;border:1px solid #d9e2ec;border-radius:.75rem;background:white}.question-group article{background:#f8fafc}
 
 .dashboard-stats {
   display: grid;

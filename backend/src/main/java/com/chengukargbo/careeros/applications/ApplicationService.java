@@ -11,6 +11,9 @@ import com.chengukargbo.careeros.common.exception.BusinessValidationException;
 import com.chengukargbo.careeros.jobs.JobOpportunity;
 import com.chengukargbo.careeros.jobs.JobOpportunityNotFoundException;
 import com.chengukargbo.careeros.jobs.JobOpportunityRepository;
+import com.chengukargbo.careeros.applications.history.ApplicationStatusHistoryService;
+import com.chengukargbo.careeros.applications.history.ApplicationTransitionSource;
+import com.chengukargbo.careeros.automation.ApplicationAutomationService;
 
 @Service
 @Transactional
@@ -18,18 +21,33 @@ public class ApplicationService {
 
     private final ApplicationRepository applicationRepository;
     private final JobOpportunityRepository jobRepository;
+    private final ApplicationStatusHistoryService historyService;
+    private final ApplicationAutomationService automationService;
 
     public ApplicationService(
         ApplicationRepository applicationRepository,
-        JobOpportunityRepository jobRepository
+        JobOpportunityRepository jobRepository,
+        ApplicationStatusHistoryService historyService,
+        ApplicationAutomationService automationService
     ) {
         this.applicationRepository = applicationRepository;
         this.jobRepository = jobRepository;
+        this.historyService = historyService;
+        this.automationService = automationService;
     }
 
     public ApplicationResponse create(
         ApplicationRequest request
     ) {
+        return create(request, ApplicationTransitionSource.USER);
+    }
+
+    public ApplicationResponse createFromImport(ApplicationRequest request) {
+        return create(request, ApplicationTransitionSource.IMPORT);
+    }
+
+    private ApplicationResponse create(ApplicationRequest request,
+        ApplicationTransitionSource source) {
         if (
             applicationRepository.existsByJobOpportunityId(
                 request.jobOpportunityId()
@@ -68,6 +86,8 @@ public class ApplicationService {
 
         Application saved =
             applicationRepository.saveAndFlush(application);
+        historyService.recordInitial(saved, source);
+        automationService.initialize(saved);
 
         return ApplicationResponse.from(saved);
     }
@@ -91,6 +111,7 @@ public class ApplicationService {
         ApplicationRequest request
     ) {
         Application application = findEntityById(id);
+        ApplicationStatus previousStatus = application.getStatus();
 
         if (
             !application
@@ -128,6 +149,8 @@ public class ApplicationService {
 
         Application saved =
             applicationRepository.saveAndFlush(application);
+        historyService.recordTransition(saved, previousStatus,
+            ApplicationTransitionSource.USER);
 
         return ApplicationResponse.from(saved);
     }

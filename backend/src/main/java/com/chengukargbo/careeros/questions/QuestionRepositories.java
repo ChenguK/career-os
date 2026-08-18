@@ -1,0 +1,4 @@
+package com.chengukargbo.careeros.questions;
+import java.util.List; import org.springframework.data.jpa.repository.JpaRepository; import com.chengukargbo.careeros.questions.QuestionEnums.*;
+interface QuestionTemplateRepository extends JpaRepository<QuestionTemplate,Long>{List<QuestionTemplate> findByJobFamilyAndActiveTrueOrderByCanonicalQuestionKeyAsc(JobFamily family);}
+interface ApplicationQuestionRepository extends JpaRepository<ApplicationQuestion,Long>{List<ApplicationQuestion> findByApplicationIdOrderByIdAsc(Long id);List<ApplicationQuestion> findAllByOrderByApplicationIdAscIdAsc();boolean existsByApplicationIdAndTemplateId(Long a,Long t);}

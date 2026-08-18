@@ -1,9 +1,25 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 
 import TrackerRecordEditor from "./TrackerRecordEditor";
 import type { ApplicationTrackerRow } from "../types/applicationTracker";
+import { getApplicationStatusHistory, getApplicationAutomation,
+  automationAction, getApplicationPreparation,
+  getApplicationPreparationEvents, preparationAction } from "../api/applicationsApi";
+import { getQuestions } from "../../questions/questionsApi";
+
+vi.mock("../api/applicationsApi", () => ({
+  getApplicationStatusHistory: vi.fn(),
+  getApplicationAutomation: vi.fn(),
+  automationAction: vi.fn(),
+  setApplicationAtsType: vi.fn(),
+  getApplicationPreparation: vi.fn(),
+  getApplicationPreparationEvents: vi.fn(),
+  preparationAction: vi.fn(),
+}));
+vi.mock("../../questions/questionsApi", () => ({ getQuestions: vi.fn() }));
 
 const row: ApplicationTrackerRow = {
   jobOpportunityId: 11,
@@ -100,15 +116,85 @@ function renderEditor(source = row) {
     companies: [company],
     jobs: [job],
     onSaveJob: vi.fn().mockResolvedValue(job),
-    onSaveApplication: vi.fn().mockResolvedValue({}),
+    onSaveApplication: vi.fn().mockResolvedValue({ id: 101 }),
     onAddApplication: vi.fn(),
     onClose: vi.fn(),
   };
-  render(<TrackerRecordEditor {...props} />);
+  render(<MemoryRouter><TrackerRecordEditor {...props} /></MemoryRouter>);
   return props;
 }
 
 describe("TrackerRecordEditor", () => {
+  beforeEach(() => {
+    vi.mocked(getApplicationStatusHistory).mockClear();
+    vi.mocked(getApplicationStatusHistory).mockResolvedValue([]);
+    vi.mocked(getQuestions).mockReset();
+    vi.mocked(getQuestions).mockResolvedValue([]);
+    vi.mocked(getApplicationAutomation).mockReset();
+    vi.mocked(getApplicationAutomation).mockResolvedValue({ id: 1,
+      applicationId: 101, state: "NOT_APPROVED", submissionMode: "PREPARE_ONLY",
+      atsType: "UNKNOWN", unresolvedRequiredCount: 0, needsReviewCount: 0,
+      blockerCount: 0, blockReason: null, approvedForPrepAt: null,
+      readyForReviewAt: null, approvedToSubmitAt: null,
+      updatedAt: "2026-08-18T12:00:00Z" });
+    vi.mocked(getApplicationPreparation).mockReset();
+    vi.mocked(getApplicationPreparation).mockResolvedValue({
+      capability: "SESSION_ONLY", session: null,
+    });
+    vi.mocked(getApplicationPreparationEvents).mockReset();
+    vi.mocked(getApplicationPreparationEvents).mockResolvedValue([]);
+    vi.mocked(preparationAction).mockReset();
+  });
+
+  it("initializes a session and reports session-only capability", async () => {
+    const user = userEvent.setup();
+    vi.mocked(preparationAction).mockResolvedValue({
+      capability: "SESSION_ONLY",
+      session: { id: 7, applicationId: 101, formTargetId: 4,
+        previousSessionId: null, state: "INITIALIZED",
+        normalizedFormUrl: "https://example.com/job", startedAt: "2026-08-18T12:00:00Z",
+        lastProgressAt: "2026-08-18T12:00:00Z", completedAt: null,
+        createdAt: "2026-08-18T12:00:00Z", updatedAt: "2026-08-18T12:00:00Z" },
+    });
+    vi.mocked(getApplicationPreparation).mockResolvedValueOnce({
+      capability: "SESSION_ONLY", session: null,
+    }).mockResolvedValue({
+      capability: "SESSION_ONLY",
+      session: { id: 7, applicationId: 101, formTargetId: 4,
+        previousSessionId: null, state: "INITIALIZED",
+        normalizedFormUrl: "https://example.com/job", startedAt: "2026-08-18T12:00:00Z",
+        lastProgressAt: "2026-08-18T12:00:00Z", completedAt: null,
+        createdAt: "2026-08-18T12:00:00Z", updatedAt: "2026-08-18T12:00:00Z" },
+    });
+    renderEditor();
+    expect((await screen.findByText(/Capability:/)).closest("p"))
+      .toHaveTextContent("Session Only");
+    await user.click(screen.getByRole("button", { name: "Initialize Preparation" }));
+    expect(preparationAction).toHaveBeenCalledWith(101, "initialize");
+    expect(await screen.findByText(/records preparation sessions only/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /submit/i })).not.toBeInTheDocument();
+  });
+
+  it("resumes an explicitly paused preparation from its checkpoint", async () => {
+    const user = userEvent.setup();
+    const paused = { capability: "FIELD_PREPARATION" as const,
+      session: { id: 7, applicationId: 101, formTargetId: 4,
+        previousSessionId: null, state: "WAITING_FOR_USER" as const,
+        normalizedFormUrl: "https://example.com/job", startedAt: "2026-08-18T12:00:00Z",
+        lastProgressAt: "2026-08-18T12:00:00Z", completedAt: null,
+        createdAt: "2026-08-18T12:00:00Z", updatedAt: "2026-08-18T12:00:00Z",
+        currentPage: "application", currentQuestion: "email",
+        checkpoint: "field:email", snapshotHash: null,
+        resumeState: "PREPARING_FIELDS" as const, pausedAt: "2026-08-18T12:00:00Z" } };
+    vi.mocked(getApplicationPreparation).mockResolvedValue(paused);
+    vi.mocked(preparationAction).mockResolvedValue({ ...paused,
+      session: { ...paused.session, state: "PREPARING_FIELDS", resumeState: null } });
+    renderEditor();
+    await user.click(await screen.findByRole("button", { name: "Resume Preparation" }));
+    expect(preparationAction).toHaveBeenCalledWith(101,"resume");
+    expect(await screen.findByText(/Paused at application/)).toBeInTheDocument();
+  });
+
   it("populates every job and application field from the canonical row", () => {
     renderEditor();
 
@@ -185,8 +271,57 @@ describe("TrackerRecordEditor", () => {
     expect(screen.getByRole("button", { name: "Cancel" }))
       .toBeInTheDocument();
     expect(props.onSaveApplication).not.toHaveBeenCalled();
+    expect(getApplicationStatusHistory).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Add Application" }));
     expect(props.onAddApplication).toHaveBeenCalledWith(11);
+  });
+
+  it("renders ordered status history and refreshes it after saving", async () => {
+    vi.mocked(getApplicationStatusHistory).mockResolvedValueOnce([
+      { id: 1, applicationId: 101, previousStatus: null, newStatus: "SAVED",
+        occurredAt: "2026-08-01T10:00:00Z", source: "IMPORT", note: null,
+        createdAt: "2026-08-01T10:00:00Z" },
+      { id: 2, applicationId: 101, previousStatus: "SAVED",
+        newStatus: "PHONE_SCREEN", occurredAt: "2026-08-02T10:00:00Z",
+        source: "USER", note: "Recruiter requested a call",
+        createdAt: "2026-08-02T10:00:00Z" },
+    ]).mockResolvedValueOnce([]);
+    const user = userEvent.setup();
+    const props = renderEditor();
+    expect(await screen.findByText("Saved")).toBeInTheDocument();
+    expect(await screen.findByText("Saved → Phone Screen")).toBeInTheDocument();
+    expect(screen.getByText("Import")).toBeInTheDocument();
+    expect(screen.getByText("Recruiter requested a call")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save Application Details" }));
+    expect(props.onSaveApplication).toHaveBeenCalled();
+    expect(getApplicationStatusHistory).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows question counts and links to the focused queue", async () => {
+    vi.mocked(getQuestions).mockResolvedValueOnce([
+      { id: 1, applicationId: 101, jobOpportunityId: 11, companyName: "GitHub",
+        positionTitle: "Platform Engineer", lifecycleStatus: "PHONE_SCREEN",
+        canonicalQuestionKey: null, questionText: "Why this role?", answerType: "TEXT",
+        required: true, classification: "CONTEXTUAL", status: "BLOCKED",
+        proposedAnswer: null, approvedAnswer: null, approvedAnswerId: null,
+        source: "MANUAL", notes: null },
+    ]);
+    renderEditor();
+    expect(await screen.findByText(/0 unanswered · 0 needs review · 1 blockers/i))
+      .toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /open question queue/i }))
+      .toHaveAttribute("href", "/questions?applicationId=101");
+  });
+
+  it("requires explicit preparation permission and has no auto-submit control", async () => {
+    vi.mocked(automationAction).mockResolvedValue({
+      ...(await getApplicationAutomation(101)), state: "APPROVED_FOR_PREP",
+      approvedForPrepAt: "2026-08-18T12:00:00Z",
+    });
+    const user = userEvent.setup(); renderEditor();
+    await user.click(await screen.findByRole("button", { name: /approve for preparation/i }));
+    expect(automationAction).toHaveBeenCalledWith(101, "approve-prep");
+    expect(screen.queryByRole("button", { name: /auto submit/i })).not.toBeInTheDocument();
   });
 
   it("preserves the other section's unsaved values when one save fails", async () => {

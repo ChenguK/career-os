@@ -1,0 +1,10 @@
+import { apiRequest } from "../../shared/api/apiClient";
+export interface Question {id:number;applicationId:number;jobOpportunityId:number;companyName:string|null;positionTitle:string;lifecycleStatus:string;canonicalQuestionKey:string|null;questionText:string;answerType:string;required:boolean;classification:string;status:string;proposedAnswer:string|null;approvedAnswer:string|null;approvedAnswerId:number|null;source:string;notes:string|null;}
+export interface Template {id:number;jobFamily:string;seniority:string|null;canonicalQuestionKey:string;representativeQuestion:string;answerType:string;classification:string;requiredByDefault:boolean;common:boolean;}
+export const getQuestions=(applicationId?:number)=>apiRequest<Question[]>(`/api/questions${applicationId?`?applicationId=${applicationId}`:""}`);
+export const getTemplates=(family:string,seniority:string)=>apiRequest<Template[]>(`/api/questions/templates?jobFamily=${family}${seniority?`&seniority=${seniority}`:""}`);
+export const addTemplates=(applicationId:number,templateIds:number[])=>apiRequest<Question[]>("/api/questions",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({applicationId,templateIds})});
+export const answerQuestion=(id:number,answer:string)=>apiRequest<Question>(`/api/questions/${id}/answer`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({answer})});
+export const questionAction=(id:number,action:"approve"|"block"|"unblock"|"reject-suggestion")=>apiRequest<Question>(`/api/questions/${id}/${action}`,{method:"POST"});
+export const createManualQuestion=(input:{applicationId:number;canonicalQuestionKey:string|null;questionText:string;answerType:string;required:boolean;classification:string;notes:string|null})=>apiRequest<Question>("/api/questions/manual",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(input)});
+export const linkApprovedAnswer=(questionId:number,approvedAnswerId:number)=>apiRequest<Question>(`/api/questions/${questionId}/link`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({approvedAnswerId})});

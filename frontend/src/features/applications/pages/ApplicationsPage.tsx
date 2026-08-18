@@ -2,8 +2,10 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { getJobs } from "../../jobs/api/jobsApi";
 import { updateJob } from "../../jobs/api/jobsApi";
@@ -19,6 +21,7 @@ import {
   exportApplicationTrackerCsv,
   exportApplicationTrackerXlsx,
   getApplicationTracker,
+  getApplicationTrackerRow,
   getApplications,
   updateApplication,
 } from "../api/applicationsApi";
@@ -39,8 +42,13 @@ import type {
   ApplicationTrackerSort,
 } from "../types/applicationTracker";
 import type { RemoteType } from "../../jobs/types/job";
+import { readDashboardHandoff } from "../types/dashboardHandoff";
+import type { TrackerEditorFocus } from "../components/TrackerRecordEditor";
 
 export default function ApplicationsPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const handledHandoffState = useRef<unknown>(null);
   const [applications, setApplications] = useState<
     Application[]
   >([]);
@@ -69,6 +77,9 @@ export default function ApplicationsPage() {
     useState<ApplicationTrackerRow | null>(null);
   const [creatingForJobId, setCreatingForJobId] =
     useState<number | null>(null);
+  const [editorFocus, setEditorFocus] =
+    useState<TrackerEditorFocus | undefined>();
+  const [handoffMessage, setHandoffMessage] = useState("");
 
   const [deletingId, setDeletingId] =
     useState<number | null>(null);
@@ -256,6 +267,84 @@ export default function ApplicationsPage() {
   );
 
   useEffect(() => {
+    const handoff = readDashboardHandoff(location.state);
+    if (
+      !handoff ||
+      handledHandoffState.current === location.state
+    ) {
+      return;
+    }
+    const request = handoff;
+    handledHandoffState.current = location.state;
+    let isCancelled = false;
+
+    async function resolveHandoff() {
+      setHandoffMessage("");
+
+      try {
+        const row = await getApplicationTrackerRow(
+          request.jobOpportunityId,
+        );
+        if (isCancelled) {
+          return;
+        }
+
+        if (
+          request.applicationId !== undefined &&
+          row.applicationId !== request.applicationId
+        ) {
+          setHandoffMessage(
+            "This Dashboard action references an application that no longer exists. The normal tracker is still available below.",
+          );
+          return;
+        }
+
+        setIsImportOpen(false);
+        if (request.action === "APPLY" && row.applicationId === null) {
+          setEditingRecord(null);
+          setEditorFocus(undefined);
+          setCreatingForJobId(row.jobOpportunityId);
+          return;
+        }
+
+        if (row.applicationId === null) {
+          setHandoffMessage(
+            "This Dashboard action requires an application record, but that application no longer exists. The normal tracker is still available below.",
+          );
+          return;
+        }
+
+        const focus: TrackerEditorFocus = request.action === "FOLLOW_UP"
+          ? "FOLLOW_UP"
+          : request.action === "PREPARE_INTERVIEW"
+            ? "INTERVIEW_PREPARATION"
+            : "APPLICATION_DETAILS";
+        setCreatingForJobId(null);
+        setEditingRecord(row);
+        setEditorFocus(focus);
+      } catch {
+        if (!isCancelled) {
+          setHandoffMessage(
+            "This Dashboard action could not be opened because the job no longer exists. The normal tracker is still available below.",
+          );
+        }
+      } finally {
+        if (!isCancelled) {
+          navigate(location.pathname, {
+            replace: true,
+            state: null,
+          });
+        }
+      }
+    }
+
+    void resolveHandoff();
+    return () => {
+      isCancelled = true;
+    };
+  }, [location.pathname, location.state, navigate]);
+
+  useEffect(() => {
     let isCancelled = false;
 
     async function loadTrackerPage() {
@@ -418,6 +507,7 @@ export default function ApplicationsPage() {
     setIsImportOpen(false);
     setMessage("");
     setError("");
+    setEditorFocus(undefined);
 
     window.scrollTo({
       top: 0,
@@ -430,6 +520,7 @@ export default function ApplicationsPage() {
     setCreatingForJobId(jobOpportunityId);
     setMessage("");
     setError("");
+    setEditorFocus(undefined);
 
     window.scrollTo({
       top: 0,
@@ -555,7 +646,11 @@ export default function ApplicationsPage() {
           onSaveJob={handleJobUpdate}
           onSaveApplication={handleApplicationUpdate}
           onAddApplication={handleAddApplication}
-          onClose={() => setEditingRecord(null)}
+          onClose={() => {
+            setEditingRecord(null);
+            setEditorFocus(undefined);
+          }}
+          initialFocus={editorFocus}
         />
       ) : (
         <ApplicationForm
@@ -568,8 +663,13 @@ export default function ApplicationsPage() {
             jobOpportunityId: creatingForJobId,
           }}
           onSubmit={handleCreate}
+          initialFocusField={
+            creatingForJobId === null ? undefined : "jobOpportunityId"
+          }
         />
       )}
+
+      {handoffMessage && <p role="alert">{handoffMessage}</p>}
 
       {message && (
         <p

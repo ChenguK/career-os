@@ -3,6 +3,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { Link } from "react-router-dom";
 
 import { getApplications } from "../../applications/api/applicationsApi";
 import type {
@@ -13,9 +14,11 @@ import { getCompanies } from "../../companies/api/companiesApi";
 import type { Company } from "../../companies/types/company";
 import { getJobs } from "../../jobs/api/jobsApi";
 import type { JobOpportunity } from "../../jobs/types/job";
+import { dashboardHandoffState } from "../../applications/types/dashboardHandoff";
 
 interface UpcomingInterview {
   applicationId: number;
+  jobOpportunityId: number;
   companyName: string | null;
   positionTitle: string;
   type: string;
@@ -260,6 +263,7 @@ export default function DashboardPage() {
 
         results.push({
           applicationId: application.id,
+          jobOpportunityId: application.jobOpportunityId,
           companyName: application.companyName,
           positionTitle: application.positionTitle,
           type: event.type,
@@ -391,6 +395,16 @@ export default function DashboardPage() {
             application.followUpDate!,
           )}
         </p>
+        <Link
+          to="/applications"
+          state={dashboardHandoffState({
+            action: "FOLLOW_UP",
+            jobOpportunityId: application.jobOpportunityId,
+            applicationId: application.id,
+          })}
+        >
+          Open follow-up
+        </Link>
       </article>
     ))}
 
@@ -406,6 +420,16 @@ export default function DashboardPage() {
         {application.companyName && (
           <p>{application.companyName}</p>
         )}
+        <Link
+          to="/applications"
+          state={dashboardHandoffState({
+            action: "FINISH_APPLICATION",
+            jobOpportunityId: application.jobOpportunityId,
+            applicationId: application.id,
+          })}
+        >
+          Finish application
+        </Link>
       </article>
     ))}
 
@@ -425,6 +449,16 @@ export default function DashboardPage() {
         <p>
           {formatDateTime(interview.dateTime)}
         </p>
+        <Link
+          to="/applications"
+          state={dashboardHandoffState({
+            action: "PREPARE_INTERVIEW",
+            jobOpportunityId: interview.jobOpportunityId,
+            applicationId: interview.applicationId,
+          })}
+        >
+          Prepare for interview
+        </Link>
       </article>
     ))}
 
@@ -442,6 +476,15 @@ export default function DashboardPage() {
         )}
 
         <p>Priority {job.priority}</p>
+        <Link
+          to="/applications"
+          state={dashboardHandoffState({
+            action: "APPLY",
+            jobOpportunityId: job.id,
+          })}
+        >
+          Start application
+        </Link>
       </article>
         ))}
     </div>
