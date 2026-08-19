@@ -5,6 +5,7 @@ import java.time.OffsetDateTime;
 import java.util.Objects;
 
 import com.chengukargbo.careeros.jobs.RemoteType;
+import com.chengukargbo.careeros.materials.CareerMaterial;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -13,6 +14,9 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -70,6 +74,10 @@ public class ApplicantProfile {
 
     @Column(name = "default_resume_version", length = 100)
     private String defaultResumeVersion;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "default_resume_material_id")
+    private CareerMaterial defaultResumeMaterial;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "preferred_work_arrangement", nullable = false, length = 30)
@@ -177,6 +185,10 @@ public class ApplicantProfile {
         lastVerifiedAt = OffsetDateTime.now();
     }
 
+    public void setDefaultResumeMaterial(CareerMaterial material) {
+        defaultResumeMaterial = material;
+    }
+
     private void apply(
         String firstName, String lastName, String preferredName, String email,
         String phone, String city, String stateRegion, String country,
@@ -268,6 +280,7 @@ public class ApplicantProfile {
     public String getGithubUrl() { return githubUrl; }
     public String getLinkedinUrl() { return linkedinUrl; }
     public String getDefaultResumeVersion() { return defaultResumeVersion; }
+    public CareerMaterial getDefaultResumeMaterial() { return defaultResumeMaterial; }
     public RemoteType getPreferredWorkArrangement() {
         return preferredWorkArrangement;
     }

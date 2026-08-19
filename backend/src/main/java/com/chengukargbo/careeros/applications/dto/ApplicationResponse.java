@@ -15,6 +15,9 @@ public record ApplicationResponse(
     String companyName,
     ApplicationStatus status,
     String resumeVersion,
+    Long resumeMaterialId,
+    String resumeMaterialDisplayName,
+    boolean resumeMaterialActive,
     boolean coverLetterNeeded,
     String portfolioLink,
     String githubLink,
@@ -35,6 +38,18 @@ public record ApplicationResponse(
     OffsetDateTime updatedAt
 ) {
 
+    public ApplicationResponse(Long id,Long jobOpportunityId,String positionTitle,Long companyId,
+        String companyName,ApplicationStatus status,String resumeVersion,boolean coverLetterNeeded,
+        String portfolioLink,String githubLink,String projectsToHighlight,String skillsToEmphasize,
+        String interviewTopics,String recruiterName,String recruiterEmail,LocalDate applicationDate,
+        LocalDate followUpDate,OffsetDateTime phoneScreenAt,OffsetDateTime interviewOneAt,
+        OffsetDateTime interviewTwoAt,OffsetDateTime offerAt,OffsetDateTime rejectedAt,String notes,
+        OffsetDateTime createdAt,OffsetDateTime updatedAt){this(id,jobOpportunityId,positionTitle,
+            companyId,companyName,status,resumeVersion,null,null,false,coverLetterNeeded,portfolioLink,
+            githubLink,projectsToHighlight,skillsToEmphasize,interviewTopics,recruiterName,recruiterEmail,
+            applicationDate,followUpDate,phoneScreenAt,interviewOneAt,interviewTwoAt,offerAt,rejectedAt,
+            notes,createdAt,updatedAt);}
+
     public static ApplicationResponse from(
         Application application
     ) {
@@ -52,6 +67,9 @@ public record ApplicationResponse(
                 : job.getCompany().getName(),
             application.getStatus(),
             application.getResumeVersion(),
+            application.getResumeMaterial() == null ? null : application.getResumeMaterial().getId(),
+            application.getResumeMaterial() == null ? null : application.getResumeMaterial().getDisplayName(),
+            application.getResumeMaterial() != null && application.getResumeMaterial().isActive(),
             application.isCoverLetterNeeded(),
             application.getPortfolioLink(),
             application.getGithubLink(),

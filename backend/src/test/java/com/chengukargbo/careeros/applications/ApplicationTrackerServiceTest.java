@@ -23,6 +23,10 @@ import com.chengukargbo.careeros.companies.Company;
 import com.chengukargbo.careeros.jobs.JobOpportunity;
 import com.chengukargbo.careeros.jobs.JobOpportunityRepository;
 import com.chengukargbo.careeros.jobs.RemoteType;
+import com.chengukargbo.careeros.automation.ApplicationAutomationService;
+import com.chengukargbo.careeros.automation.AutomationEnums.State;
+import com.chengukargbo.careeros.applications.history.ApplicationStatusHistoryService;
+import com.chengukargbo.careeros.applications.lock.*;
 
 @ExtendWith(MockitoExtension.class)
 class ApplicationTrackerServiceTest {
@@ -35,6 +39,15 @@ class ApplicationTrackerServiceTest {
 
     @Mock
     private ApplicationTrackerQueryEngine queryEngine;
+
+    @Mock
+    private ApplicationAutomationService automationService;
+
+    @Mock
+    private ApplicationStatusHistoryService statusHistoryService;
+
+    @Mock
+    private ApplicationLockGuard lockGuard;
 
     @InjectMocks
     private ApplicationTrackerService trackerService;
@@ -81,6 +94,9 @@ class ApplicationTrackerServiceTest {
 
         when(applicationRepository.findAll())
             .thenReturn(List.of(firstApplication, secondApplication));
+        when(automationService.findExistingState(101L)).thenReturn(State.APPROVED_FOR_PREP);
+        when(lockGuard.state(101L)).thenReturn(ApplicationLockState.NOT_SUBMITTED);
+        when(automationService.findExistingState(103L)).thenReturn(State.NEEDS_ANSWERS);
         when(
             jobRepository
                 .findAllByOrderByPriorityAscCreatedAtDescIdDesc()
@@ -160,6 +176,10 @@ class ApplicationTrackerServiceTest {
             .isEqualTo(OffsetDateTime.parse("2026-08-03T10:00:00Z"));
         assertThat(complete.applicationUpdatedAt())
             .isEqualTo(OffsetDateTime.parse("2026-08-04T10:00:00Z"));
+        assertThat(complete.automationState()).isEqualTo(State.APPROVED_FOR_PREP);
+        assertThat(complete.lockState()).isEqualTo(ApplicationLockState.NOT_SUBMITTED);
+        assertThat(complete.statusDate())
+            .isEqualTo(OffsetDateTime.parse("2026-08-03T00:00:00Z"));
 
         assertThat(rows.get(1).companyName()).isEqualTo("GitHub");
         assertThat(rows.get(1).applicationId()).isNull();
@@ -182,9 +202,14 @@ class ApplicationTrackerServiceTest {
             77L, null, "Focused Engineer", (short) 2
         );
         Application application = application(177L, job, "Focused notes");
+        ReflectionTestUtils.setField(application, "status", ApplicationStatus.PREPARING);
+        OffsetDateTime historyDate = OffsetDateTime.parse("2026-08-09T15:00:00Z");
         when(jobRepository.findById(77L)).thenReturn(Optional.of(job));
         when(applicationRepository.findByJobOpportunityId(77L))
             .thenReturn(Optional.of(application));
+        when(automationService.findExistingState(177L)).thenReturn(State.NOT_APPROVED);
+        when(statusHistoryService.latestEventForStatus(177L, ApplicationStatus.PREPARING))
+            .thenReturn(historyDate);
 
         ApplicationTrackerResponse row =
             trackerService.findByJobOpportunityId(77L);
@@ -192,6 +217,7 @@ class ApplicationTrackerServiceTest {
         assertThat(row.jobOpportunityId()).isEqualTo(77L);
         assertThat(row.applicationId()).isEqualTo(177L);
         assertThat(row.applicationNotes()).isEqualTo("Focused notes");
+        assertThat(row.statusDate()).isEqualTo(historyDate);
         verify(jobRepository).findById(77L);
         verify(applicationRepository).findByJobOpportunityId(77L);
     }

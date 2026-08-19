@@ -22,6 +22,7 @@ public class ObservedQuestion {
     @Enumerated(EnumType.STRING) @Column(name = "answer_type", nullable = false, length = 30)
     private AnswerType answerType;
     @Column(nullable = false) private boolean required;
+    @Column(name = "page_key", nullable = false, length = 200) private String pageKey;
     @Column(nullable = false) private boolean active;
     @Column(name = "display_order", nullable = false) private int displayOrder;
     @Column(name = "question_fingerprint", nullable = false, length = 64)
@@ -35,11 +36,19 @@ public class ObservedQuestion {
     ObservedQuestion(FormObservationSnapshot snapshot, String externalQuestionId,
         String questionText, AnswerType answerType, boolean required,
         boolean active, int displayOrder, String fingerprint) {
+        this(snapshot, externalQuestionId, questionText, answerType, required,
+            "application", active, displayOrder, fingerprint);
+    }
+
+    ObservedQuestion(FormObservationSnapshot snapshot, String externalQuestionId,
+        String questionText, AnswerType answerType, boolean required, String pageKey,
+        boolean active, int displayOrder, String fingerprint) {
         this.snapshot = snapshot;
         this.externalQuestionId = externalQuestionId;
         this.questionText = questionText;
         this.answerType = answerType;
         this.required = required;
+        this.pageKey = pageKey;
         this.active = active;
         this.displayOrder = displayOrder;
         questionFingerprint = fingerprint;
@@ -53,6 +62,7 @@ public class ObservedQuestion {
     public String getQuestionText() { return questionText; }
     public AnswerType getAnswerType() { return answerType; }
     public boolean isRequired() { return required; }
+    public String getPageKey() { return pageKey; }
     public boolean isActive() { return active; }
     public int getDisplayOrder() { return displayOrder; }
     public String getQuestionFingerprint() { return questionFingerprint; }

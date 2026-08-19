@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 import com.chengukargbo.careeros.jobs.JobOpportunity;
+import com.chengukargbo.careeros.materials.CareerMaterial;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -15,6 +16,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -41,6 +43,10 @@ public class Application {
 
     @Column(name = "resume_version", length = 100)
     private String resumeVersion;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "resume_material_id")
+    private CareerMaterial resumeMaterial;
 
     @Column(name = "cover_letter_needed", nullable = false)
     private boolean coverLetterNeeded;
@@ -99,10 +105,24 @@ public class Application {
     protected Application() {
     }
 
+    public Application(JobOpportunity jobOpportunity, ApplicationStatus status,
+        String resumeVersion, boolean coverLetterNeeded, String portfolioLink,
+        String githubLink, String projectsToHighlight, String skillsToEmphasize,
+        String interviewTopics, String recruiterName, String recruiterEmail,
+        LocalDate applicationDate, LocalDate followUpDate, OffsetDateTime phoneScreenAt,
+        OffsetDateTime interviewOneAt, OffsetDateTime interviewTwoAt, OffsetDateTime offerAt,
+        OffsetDateTime rejectedAt, String notes) {
+        this(jobOpportunity,status,resumeVersion,null,coverLetterNeeded,portfolioLink,
+            githubLink,projectsToHighlight,skillsToEmphasize,interviewTopics,recruiterName,
+            recruiterEmail,applicationDate,followUpDate,phoneScreenAt,interviewOneAt,
+            interviewTwoAt,offerAt,rejectedAt,notes);
+    }
+
     public Application(
         JobOpportunity jobOpportunity,
         ApplicationStatus status,
         String resumeVersion,
+        CareerMaterial resumeMaterial,
         boolean coverLetterNeeded,
         String portfolioLink,
         String githubLink,
@@ -123,6 +143,7 @@ public class Application {
         this.jobOpportunity = jobOpportunity;
         this.status = status;
         this.resumeVersion = resumeVersion;
+        this.resumeMaterial = resumeMaterial;
         this.coverLetterNeeded = coverLetterNeeded;
         this.portfolioLink = portfolioLink;
         this.githubLink = githubLink;
@@ -144,6 +165,7 @@ public class Application {
     public void update(
         ApplicationStatus status,
         String resumeVersion,
+        CareerMaterial resumeMaterial,
         boolean coverLetterNeeded,
         String portfolioLink,
         String githubLink,
@@ -163,6 +185,7 @@ public class Application {
     ) {
         this.status = status;
         this.resumeVersion = resumeVersion;
+        this.resumeMaterial = resumeMaterial;
         this.coverLetterNeeded = coverLetterNeeded;
         this.portfolioLink = portfolioLink;
         this.githubLink = githubLink;
@@ -179,6 +202,16 @@ public class Application {
         this.offerAt = offerAt;
         this.rejectedAt = rejectedAt;
         this.notes = notes;
+    }
+
+    public void update(ApplicationStatus status,String resumeVersion,boolean coverLetterNeeded,
+        String portfolioLink,String githubLink,String projectsToHighlight,String skillsToEmphasize,
+        String interviewTopics,String recruiterName,String recruiterEmail,LocalDate applicationDate,
+        LocalDate followUpDate,OffsetDateTime phoneScreenAt,OffsetDateTime interviewOneAt,
+        OffsetDateTime interviewTwoAt,OffsetDateTime offerAt,OffsetDateTime rejectedAt,String notes){
+        update(status,resumeVersion,resumeMaterial,coverLetterNeeded,portfolioLink,githubLink,
+            projectsToHighlight,skillsToEmphasize,interviewTopics,recruiterName,recruiterEmail,
+            applicationDate,followUpDate,phoneScreenAt,interviewOneAt,interviewTwoAt,offerAt,rejectedAt,notes);
     }
 
     @PrePersist
@@ -208,6 +241,8 @@ public class Application {
     public String getResumeVersion() {
         return resumeVersion;
     }
+
+    public CareerMaterial getResumeMaterial() { return resumeMaterial; }
 
     public boolean isCoverLetterNeeded() {
         return coverLetterNeeded;
@@ -243,6 +278,11 @@ public class Application {
 
     public LocalDate getApplicationDate() {
         return applicationDate;
+    }
+
+    void recordManualSubmission(LocalDate confirmedApplicationDate) {
+        this.status = ApplicationStatus.APPLIED;
+        this.applicationDate = confirmedApplicationDate;
     }
 
     public LocalDate getFollowUpDate() {

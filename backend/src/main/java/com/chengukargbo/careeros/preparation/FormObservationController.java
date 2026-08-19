@@ -25,10 +25,22 @@ public class FormObservationController {
         return service.latestQuestions(applicationId);
     }
 
+    @GetMapping("/material-requirements")
+    List<MaterialRequirementResponse> materialRequirements(@PathVariable Long applicationId) {
+        return service.latestMaterialRequirements(applicationId);
+    }
+
     @GetMapping("/snapshots/{snapshotId}/questions")
     List<QuestionResponse> snapshotQuestions(
         @PathVariable Long applicationId, @PathVariable Long snapshotId
     ) {
         return service.snapshotQuestions(applicationId, snapshotId);
+    }
+
+    @GetMapping("/snapshots/{snapshotId}/material-requirements")
+    List<MaterialRequirementResponse> snapshotMaterialRequirements(
+        @PathVariable Long applicationId, @PathVariable Long snapshotId
+    ) {
+        return service.snapshotMaterialRequirements(applicationId, snapshotId);
     }
 }

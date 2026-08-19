@@ -63,7 +63,7 @@ public class ApplicationPreparationSession {
     }
     void waitForUser(String snapshotHash) {
         pauseFrom(SessionState.COLLECTING_QUESTIONS, SessionState.PREPARING_FIELDS,
-            null, null, "questions-reviewed", snapshotHash);
+            "application", null, "questions-reviewed", snapshotHash);
     }
     void beginPreparingFields() {
         transition(SessionState.WAITING_FOR_USER, SessionState.PREPARING_FIELDS);

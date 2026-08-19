@@ -21,6 +21,8 @@ public record ApplicationRequest(
     )
     String resumeVersion,
 
+    Long resumeMaterialId,
+
     boolean coverLetterNeeded,
 
     @Size(max = 1000)

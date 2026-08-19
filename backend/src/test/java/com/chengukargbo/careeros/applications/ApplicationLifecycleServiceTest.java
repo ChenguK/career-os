@@ -1,6 +1,7 @@
 package com.chengukargbo.careeros.applications;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -15,6 +16,8 @@ import com.chengukargbo.careeros.applications.dto.ApplicationRequest;
 import com.chengukargbo.careeros.applications.history.*;
 import com.chengukargbo.careeros.jobs.*;
 import com.chengukargbo.careeros.automation.ApplicationAutomationService;
+import com.chengukargbo.careeros.materials.CareerMaterialService;
+import com.chengukargbo.careeros.applications.lock.*;
 
 @ExtendWith(MockitoExtension.class)
 class ApplicationLifecycleServiceTest {
@@ -22,6 +25,9 @@ class ApplicationLifecycleServiceTest {
     @Mock JobOpportunityRepository jobRepository;
     @Mock ApplicationStatusHistoryService historyService;
     @Mock ApplicationAutomationService automationService;
+    @Mock CareerMaterialService materialService;
+    @Mock ApplicationLockService lockService;
+    @Mock ApplicationLockGuard lockGuard;
     @InjectMocks ApplicationService service;
 
     @Test void manualAndImportCreationAssignTrustedSources() {
@@ -40,6 +46,7 @@ class ApplicationLifecycleServiceTest {
         verify(historyService).recordInitial(any(Application.class),
             eq(ApplicationTransitionSource.IMPORT));
         verify(automationService, times(2)).initialize(any(Application.class));
+        verify(lockService, times(2)).initialize(any(Application.class));
     }
 
     @Test void updatePassesThePersistedPreviousStatusToCentralHistory() {
@@ -53,8 +60,21 @@ class ApplicationLifecycleServiceTest {
         assertThat(application.getPhoneScreenAt()).isNull();
     }
 
+    @Test void genericUserEditingCannotCreateAppliedWithoutCoordination() {
+        assertThatThrownBy(() -> service.create(request(ApplicationStatus.APPLIED, "manual")))
+            .isInstanceOf(com.chengukargbo.careeros.common.exception.BusinessValidationException.class)
+            .hasMessageContaining("Mark as Applied");
+
+        Application application = application(ApplicationStatus.SAVED);
+        when(applicationRepository.findById(7L)).thenReturn(Optional.of(application));
+        assertThatThrownBy(() -> service.update(7L, request(ApplicationStatus.APPLIED, "manual")))
+            .isInstanceOf(com.chengukargbo.careeros.common.exception.BusinessValidationException.class)
+            .hasMessageContaining("Mark as Applied");
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.SAVED);
+    }
+
     private ApplicationRequest request(ApplicationStatus status, String notes) {
-        return new ApplicationRequest(5L, status, null, false, null, null,
+        return new ApplicationRequest(5L, status, null, null, false, null, null,
             null, null, null, null, null, null, null, null, null, null, null,
             null, notes);
     }

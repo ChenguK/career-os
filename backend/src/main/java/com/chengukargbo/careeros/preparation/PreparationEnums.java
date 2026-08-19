@@ -19,6 +19,17 @@ public final class PreparationEnums {
 
     public enum IdentitySource { USER, ADAPTER }
 
+    public enum MaterialType { RESUME, OTHER }
+
+    public enum ProviderFailureCode {
+        ASHBY_FORM_ENTRY_NOT_FOUND,
+        ASHBY_FORM_NOT_OPENED,
+        ASHBY_APPLICATION_ROOT_NOT_FOUND,
+        ASHBY_STABLE_FIELD_ID_MISSING,
+        ASHBY_UNSUPPORTED_LAYOUT,
+        ASHBY_OBSERVATION_PERSIST_FAILED
+    }
+
     public enum EventType {
         SESSION_INITIALIZED, SESSION_CANCELLED, SESSION_RETRY_INITIALIZED,
         FORM_OPENING, COLLECTING_QUESTIONS, OBSERVATION_CAPTURED,

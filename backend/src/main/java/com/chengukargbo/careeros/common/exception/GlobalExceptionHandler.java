@@ -118,7 +118,7 @@ public class GlobalExceptionHandler {
     ) {
         return buildError(
             HttpStatus.BAD_REQUEST,
-            "CSV file exceeds the 2 MB limit",
+            "Uploaded file exceeds the server file-size limit",
             request.getRequestURI()
         );
     }

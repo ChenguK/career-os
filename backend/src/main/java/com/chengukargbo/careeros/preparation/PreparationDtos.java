@@ -41,22 +41,34 @@ public final class PreparationDtos {
     public record Event(
         Long id, Long sessionId, EventType eventType, OffsetDateTime timestamp,
         boolean retryable, String safeUserMessage, String pageKey,
-        String questionKey
+        String questionKey, ProviderFailureCode providerFailureCode
     ) {
+        public Event(Long id, Long sessionId, EventType eventType,
+            OffsetDateTime timestamp, boolean retryable, String safeUserMessage,
+            String pageKey, String questionKey) {
+            this(id, sessionId, eventType, timestamp, retryable,
+                safeUserMessage, pageKey, questionKey, null);
+        }
+
         static Event from(PreparationSessionEvent event) {
             return new Event(
                 event.getId(), event.getSession().getId(), event.getEventType(),
                 event.getOccurredAt(), event.isRetryable(),
                 event.getSafeUserMessage(), event.getPageKey(),
-                event.getQuestionKey()
+                event.getQuestionKey(), event.getProviderFailureCode()
             );
         }
     }
 
     public record WorkerFailureRequest(
         @NotBlank @Size(max = 1000) String safeUserMessage,
-        boolean retryable
-    ) {}
+        boolean retryable,
+        ProviderFailureCode failureCode
+    ) {
+        public WorkerFailureRequest(String safeUserMessage, boolean retryable) {
+            this(safeUserMessage, retryable, null);
+        }
+    }
 
     public record PauseRequest(
         @Size(max=200) String currentPage,

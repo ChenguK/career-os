@@ -26,11 +26,14 @@ import jakarta.validation.Valid;
 public class ApplicationController {
 
     private final ApplicationService applicationService;
+    private final ManualSubmissionService manualSubmissionService;
 
     public ApplicationController(
-        ApplicationService applicationService
+        ApplicationService applicationService,
+        ManualSubmissionService manualSubmissionService
     ) {
         this.applicationService = applicationService;
+        this.manualSubmissionService = manualSubmissionService;
     }
 
     @PostMapping
@@ -67,6 +70,14 @@ public class ApplicationController {
         @Valid @RequestBody ApplicationRequest request
     ) {
         return applicationService.update(id, request);
+    }
+
+    @PostMapping("/{id}/mark-applied")
+    public ManualSubmissionDtos.Response markApplied(
+        @PathVariable Long id,
+        @Valid @RequestBody ManualSubmissionDtos.Request request
+    ) {
+        return manualSubmissionService.markApplied(id, request.applicationDate());
     }
 
     @DeleteMapping("/{id}")

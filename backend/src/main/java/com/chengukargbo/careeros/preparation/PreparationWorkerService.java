@@ -91,8 +91,16 @@ public class PreparationWorkerService {
     public Response failed(Long applicationId, Long sessionId,
         WorkerFailureRequest request) {
         ApplicationPreparationSession session = session(applicationId, sessionId);
-        transition(session, session::fail, EventType.SESSION_FAILED,
-            request.safeUserMessage().trim(), request.retryable());
+        try {
+            session.fail();
+        } catch (IllegalStateException exception) {
+            throw new BusinessValidationException(exception.getMessage());
+        }
+        sessions.saveAndFlush(session);
+        events.save(new PreparationSessionEvent(
+            session, EventType.SESSION_FAILED, request.retryable(),
+            request.safeUserMessage().trim(), null, null, request.failureCode()
+        ));
         return response(session);
     }
 

@@ -111,7 +111,6 @@ public class ApprovedFieldPlanService {
         addText(p,keys,"state_region",x.getStateRegion(),x); addText(p,keys,"country",x.getCountry(),x);
         addText(p,keys,"postal_code",x.getPostalCode(),x); addText(p,keys,"portfolio_url",x.getPortfolioUrl(),x);
         addText(p,keys,"github_url",x.getGithubUrl(),x); addText(p,keys,"linkedin_url",x.getLinkedinUrl(),x);
-        addText(p,keys,"default_resume_version",x.getDefaultResumeVersion(),x);
         addText(p,keys,"preferred_work_arrangement",x.getPreferredWorkArrangement()==null?null:x.getPreferredWorkArrangement().name(),x);
         addNumber(p,keys,"minimum_salary",x.getMinimumSalary(),x);
         addText(p,keys,"salary_currency",x.getSalaryCurrency(),x);

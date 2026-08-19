@@ -14,6 +14,10 @@ import com.chengukargbo.careeros.jobs.JobOpportunityRepository;
 import com.chengukargbo.careeros.applications.history.ApplicationStatusHistoryService;
 import com.chengukargbo.careeros.applications.history.ApplicationTransitionSource;
 import com.chengukargbo.careeros.automation.ApplicationAutomationService;
+import com.chengukargbo.careeros.materials.CareerMaterial;
+import com.chengukargbo.careeros.materials.CareerMaterialService;
+import com.chengukargbo.careeros.applications.lock.ApplicationLockService;
+import com.chengukargbo.careeros.applications.lock.ApplicationLockGuard;
 
 @Service
 @Transactional
@@ -23,17 +27,26 @@ public class ApplicationService {
     private final JobOpportunityRepository jobRepository;
     private final ApplicationStatusHistoryService historyService;
     private final ApplicationAutomationService automationService;
+    private final CareerMaterialService materialService;
+    private final ApplicationLockService lockService;
+    private final ApplicationLockGuard lockGuard;
 
     public ApplicationService(
         ApplicationRepository applicationRepository,
         JobOpportunityRepository jobRepository,
         ApplicationStatusHistoryService historyService,
-        ApplicationAutomationService automationService
+        ApplicationAutomationService automationService,
+        CareerMaterialService materialService,
+        ApplicationLockService lockService,
+        ApplicationLockGuard lockGuard
     ) {
         this.applicationRepository = applicationRepository;
         this.jobRepository = jobRepository;
         this.historyService = historyService;
         this.automationService = automationService;
+        this.materialService = materialService;
+        this.lockService = lockService;
+        this.lockGuard = lockGuard;
     }
 
     public ApplicationResponse create(
@@ -48,6 +61,12 @@ public class ApplicationService {
 
     private ApplicationResponse create(ApplicationRequest request,
         ApplicationTransitionSource source) {
+        if (source == ApplicationTransitionSource.USER
+            && request.status() == ApplicationStatus.APPLIED) {
+            throw new BusinessValidationException(
+                "Use Mark as Applied to record a submitted application"
+            );
+        }
         if (
             applicationRepository.existsByJobOpportunityId(
                 request.jobOpportunityId()
@@ -66,6 +85,7 @@ public class ApplicationService {
                 ? ApplicationStatus.SAVED
                 : request.status(),
             normalize(request.resumeVersion()),
+            resolveMaterial(request.resumeMaterialId(), null),
             request.coverLetterNeeded(),
             normalize(request.portfolioLink()),
             normalize(request.githubLink()),
@@ -88,6 +108,7 @@ public class ApplicationService {
             applicationRepository.saveAndFlush(application);
         historyService.recordInitial(saved, source);
         automationService.initialize(saved);
+        lockService.initialize(saved);
 
         return ApplicationResponse.from(saved);
     }
@@ -112,6 +133,21 @@ public class ApplicationService {
     ) {
         Application application = findEntityById(id);
         ApplicationStatus previousStatus = application.getStatus();
+        if (request.status() == ApplicationStatus.APPLIED
+            && previousStatus != ApplicationStatus.APPLIED) {
+            throw new BusinessValidationException(
+                "Use Mark as Applied to record a submitted application"
+            );
+        }
+        Long currentMaterialId = application.getResumeMaterial() == null
+            ? null : application.getResumeMaterial().getId();
+        String requestedLegacyResume = normalize(request.resumeVersion());
+        if (!java.util.Objects.equals(currentMaterialId, request.resumeMaterialId())
+            || (currentMaterialId == null
+                && !java.util.Objects.equals(application.getResumeVersion(), requestedLegacyResume))) {
+            lockGuard.requireMaterialChange(id);
+        }
+        if (currentMaterialId != null) requestedLegacyResume = application.getResumeVersion();
 
         if (
             !application
@@ -128,7 +164,8 @@ public class ApplicationService {
             request.status() == null
                 ? ApplicationStatus.SAVED
                 : request.status(),
-            normalize(request.resumeVersion()),
+            requestedLegacyResume,
+            resolveMaterial(request.resumeMaterialId(), application),
             request.coverLetterNeeded(),
             normalize(request.portfolioLink()),
             normalize(request.githubLink()),
@@ -181,5 +218,12 @@ public class ApplicationService {
         String trimmed = value.trim();
 
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private CareerMaterial resolveMaterial(Long id, Application application) {
+        if (id == null) return null;
+        if (application != null && application.getResumeMaterial() != null
+            && application.getResumeMaterial().getId().equals(id)) return application.getResumeMaterial();
+        return materialService.requireOwnedActive(id);
     }
 }

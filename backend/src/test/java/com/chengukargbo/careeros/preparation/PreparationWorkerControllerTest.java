@@ -20,6 +20,10 @@ import com.chengukargbo.careeros.preparation.ObservationDtos.SnapshotResponse;
 import com.chengukargbo.careeros.preparation.PreparationDtos.Response;
 import com.chengukargbo.careeros.preparation.PreparationEnums.PreparationCapability;
 import com.chengukargbo.careeros.preparation.FieldPreparationDtos.*;
+import com.chengukargbo.careeros.applications.lock.ApplicationLockGuard;
+import com.chengukargbo.careeros.automation.ApplicationAutomationService;
+import com.chengukargbo.careeros.automation.AutomationDtos;
+import com.chengukargbo.careeros.automation.AutomationEnums.*;
 
 @WebMvcTest(PreparationWorkerController.class)
 class PreparationWorkerControllerTest {
@@ -27,10 +31,17 @@ class PreparationWorkerControllerTest {
     @MockitoBean private PreparationWorkerService service;
     @MockitoBean private ApprovedFieldPlanService fieldPlans;
     @MockitoBean private PreparationReviewService reviews;
+    @MockitoBean private ApprovedMaterialPlanService materialPlans;
+    @MockitoBean private ApplicationLockGuard lockGuard;
+    @MockitoBean private ApplicationAutomationService automation;
 
     @Test
     void exposesOnlyActionOrientedWorkerCommands() throws Exception {
         Response response = new Response(PreparationCapability.INSPECTION, null);
+        when(automation.get(12L)).thenReturn(new AutomationDtos.Response(
+            1L, 12L, State.APPROVED_FOR_PREP, SubmissionMode.PREPARE_ONLY,
+            AtsType.ASHBY, 0, 0, 0, null, OffsetDateTime.now(), null, null,
+            OffsetDateTime.now()));
         when(service.opening(12L, 7L)).thenReturn(response);
         when(service.collectingQuestions(12L, 7L)).thenReturn(response);
         when(service.observations(eq(12L), eq(7L), any())).thenReturn(
@@ -58,8 +69,12 @@ class PreparationWorkerControllerTest {
             .andExpect(jsonPath("$.preparationSessionId").value(7));
         mockMvc.perform(post(root + "/failed")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"safeUserMessage\":\"Inspection failed\",\"retryable\":true}"))
+                .content("{\"safeUserMessage\":\"Inspection failed\",\"retryable\":true,\"failureCode\":\"ASHBY_APPLICATION_ROOT_NOT_FOUND\"}"))
             .andExpect(status().isOk());
+        mockMvc.perform(post(root + "/failed")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"safeUserMessage\":\"Inspection failed\",\"retryable\":true,\"failureCode\":\"RAW_PLAYWRIGHT_STACK\"}"))
+            .andExpect(status().isBadRequest());
         mockMvc.perform(post(root + "/pause")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"checkpoint\":\"field:email\"}"))

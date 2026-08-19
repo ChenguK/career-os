@@ -27,6 +27,9 @@ public class FormObservationSnapshot {
     @OneToMany(mappedBy = "snapshot", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("displayOrder ASC, externalQuestionId ASC")
     private List<ObservedQuestion> questions = new ArrayList<>();
+    @OneToMany(mappedBy = "snapshot", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("displayOrder ASC, externalFieldId ASC")
+    private List<ObservedMaterialRequirement> materialRequirements = new ArrayList<>();
 
     protected FormObservationSnapshot() {}
 
@@ -41,6 +44,7 @@ public class FormObservationSnapshot {
     }
 
     void add(ObservedQuestion question) { questions.add(question); }
+    void add(ObservedMaterialRequirement requirement) { materialRequirements.add(requirement); }
 
     public Long getId() { return id; }
     public ApplicationFormTarget getFormTarget() { return formTarget; }
@@ -50,4 +54,7 @@ public class FormObservationSnapshot {
     public OffsetDateTime getObservedAt() { return observedAt; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public List<ObservedQuestion> getQuestions() { return List.copyOf(questions); }
+    public List<ObservedMaterialRequirement> getMaterialRequirements() {
+        return List.copyOf(materialRequirements);
+    }
 }

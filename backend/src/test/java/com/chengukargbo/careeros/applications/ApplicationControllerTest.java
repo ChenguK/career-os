@@ -28,6 +28,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.chengukargbo.careeros.applications.dto.ApplicationRequest;
 import com.chengukargbo.careeros.applications.dto.ApplicationResponse;
 import com.chengukargbo.careeros.common.exception.BusinessValidationException;
+import com.chengukargbo.careeros.applications.lock.ApplicationLockDtos;
+import com.chengukargbo.careeros.applications.lock.ApplicationLockState;
 
 @WebMvcTest(ApplicationController.class)
 class ApplicationControllerTest {
@@ -37,6 +39,9 @@ class ApplicationControllerTest {
 
     @MockitoBean
     private ApplicationService applicationService;
+
+    @MockitoBean
+    private ManualSubmissionService manualSubmissionService;
 
     @Test
     void createsApplication() throws Exception {
@@ -72,6 +77,23 @@ class ApplicationControllerTest {
             .andExpect(
                 jsonPath("$.status").value("APPLIED")
             );
+    }
+
+    @Test
+    void recordsManualSubmission() throws Exception {
+        when(manualSubmissionService.markApplied(eq(1L), eq(LocalDate.of(2026, 8, 10))))
+            .thenReturn(new ManualSubmissionDtos.Response(sampleResponse(),
+                new ApplicationLockDtos.Response(4L, 1L,
+                    ApplicationLockState.SUBMITTED, OffsetDateTime.now(),
+                    "User recorded manual application submission",
+                    OffsetDateTime.now(), OffsetDateTime.now())));
+
+        mockMvc.perform(post("/api/applications/1/mark-applied")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"applicationDate\":\"2026-08-10\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.lock.lockState").value("SUBMITTED"));
+        verify(manualSubmissionService).markApplied(1L, LocalDate.of(2026, 8, 10));
     }
 
     @Test

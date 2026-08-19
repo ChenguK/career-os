@@ -44,10 +44,16 @@ public class ApplicationFormTarget {
 
     void observeIdentity(String normalizedFormUrl,
         String externalRequisitionId, String externalFormKey) {
-        confirm(normalizedFormUrl);
+        IdentitySource existingSource = identitySource;
+        if (existingSource == IdentitySource.USER) {
+            lastConfirmedAt = OffsetDateTime.now();
+        } else {
+            confirm(normalizedFormUrl);
+        }
         this.externalRequisitionId = externalRequisitionId;
         this.externalFormKey = externalFormKey;
-        identitySource = IdentitySource.ADAPTER;
+        identitySource = existingSource == IdentitySource.USER
+            ? IdentitySource.USER : IdentitySource.ADAPTER;
     }
 
     @PrePersist void create() { createdAt = updatedAt = OffsetDateTime.now(); }

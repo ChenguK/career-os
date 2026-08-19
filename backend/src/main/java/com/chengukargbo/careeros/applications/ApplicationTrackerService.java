@@ -15,6 +15,9 @@ import com.chengukargbo.careeros.applications.tracker.ApplicationTrackerQueryEng
 import com.chengukargbo.careeros.jobs.JobOpportunity;
 import com.chengukargbo.careeros.jobs.JobOpportunityNotFoundException;
 import com.chengukargbo.careeros.jobs.JobOpportunityRepository;
+import com.chengukargbo.careeros.automation.ApplicationAutomationService;
+import com.chengukargbo.careeros.applications.history.ApplicationStatusHistoryService;
+import com.chengukargbo.careeros.applications.lock.ApplicationLockGuard;
 
 @Service
 @Transactional(readOnly = true)
@@ -23,15 +26,24 @@ public class ApplicationTrackerService {
     private final JobOpportunityRepository jobRepository;
     private final ApplicationRepository applicationRepository;
     private final ApplicationTrackerQueryEngine queryEngine;
+    private final ApplicationAutomationService automationService;
+    private final ApplicationStatusHistoryService statusHistoryService;
+    private final ApplicationLockGuard lockGuard;
 
     public ApplicationTrackerService(
         JobOpportunityRepository jobRepository,
         ApplicationRepository applicationRepository,
-        ApplicationTrackerQueryEngine queryEngine
+        ApplicationTrackerQueryEngine queryEngine,
+        ApplicationAutomationService automationService,
+        ApplicationStatusHistoryService statusHistoryService,
+        ApplicationLockGuard lockGuard
     ) {
         this.jobRepository = jobRepository;
         this.applicationRepository = applicationRepository;
         this.queryEngine = queryEngine;
+        this.automationService = automationService;
+        this.statusHistoryService = statusHistoryService;
+        this.lockGuard = lockGuard;
     }
 
     public List<ApplicationTrackerResponse> findAll() {
@@ -50,10 +62,7 @@ public class ApplicationTrackerService {
         return jobRepository
             .findAllByOrderByPriorityAscCreatedAtDescIdDesc()
             .stream()
-            .map(job -> ApplicationTrackerResponse.from(
-                job,
-                applicationsByJobId.get(job.getId())
-            ))
+            .map(job -> trackerResponse(job, applicationsByJobId.get(job.getId())))
             .toList();
     }
 
@@ -74,6 +83,17 @@ public class ApplicationTrackerService {
             .findByJobOpportunityId(jobOpportunityId)
             .orElse(null);
 
-        return ApplicationTrackerResponse.from(job, application);
+        return trackerResponse(job, application);
+    }
+
+    private ApplicationTrackerResponse trackerResponse(JobOpportunity job, Application application) {
+        if (application == null) return ApplicationTrackerResponse.from(job, null);
+        return ApplicationTrackerResponse.from(
+            job,
+            application,
+            automationService.findExistingState(application.getId()),
+            statusHistoryService.latestEventForStatus(application.getId(), application.getStatus()),
+            lockGuard.state(application.getId())
+        );
     }
 }

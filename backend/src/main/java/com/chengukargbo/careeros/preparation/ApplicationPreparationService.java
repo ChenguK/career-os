@@ -15,6 +15,7 @@ import com.chengukargbo.careeros.jobs.JobOpportunity;
 import com.chengukargbo.careeros.jobs.JobOpportunityRepository;
 import com.chengukargbo.careeros.preparation.PreparationDtos.*;
 import com.chengukargbo.careeros.preparation.PreparationEnums.*;
+import com.chengukargbo.careeros.applications.lock.ApplicationLockGuard;
 
 @Service
 @Transactional
@@ -30,6 +31,7 @@ public class ApplicationPreparationService {
     private final ApplicationAutomationService automation;
     private final ApplicationUrlService urls;
     private final FormObservationSnapshotRepository snapshots;
+    private final ApplicationLockGuard lockGuard;
 
     public ApplicationPreparationService(
         ApplicationRepository applications,
@@ -39,7 +41,8 @@ public class ApplicationPreparationService {
         PreparationSessionEventRepository events,
         ApplicationAutomationService automation,
         ApplicationUrlService urls,
-        FormObservationSnapshotRepository snapshots
+        FormObservationSnapshotRepository snapshots,
+        ApplicationLockGuard lockGuard
     ) {
         this.applications = applications;
         this.jobs = jobs;
@@ -49,10 +52,12 @@ public class ApplicationPreparationService {
         this.automation = automation;
         this.urls = urls;
         this.snapshots = snapshots;
+        this.lockGuard = lockGuard;
     }
 
     public Response initialize(Long applicationId) {
         Application application = application(applicationId);
+        lockGuard.requireLiveInteraction(applicationId);
         requirePreparationPermission(applicationId);
         if (active(applicationId) != null) {
             throw new BusinessValidationException(
@@ -86,6 +91,7 @@ public class ApplicationPreparationService {
 
     public Response retry(Long applicationId) {
         Application application = application(applicationId);
+        lockGuard.requireLiveInteraction(applicationId);
         requirePreparationPermission(applicationId);
         if (active(applicationId) != null) {
             throw new BusinessValidationException(
@@ -107,6 +113,7 @@ public class ApplicationPreparationService {
 
     public Response resume(Long applicationId) {
         application(applicationId);
+        lockGuard.requireLiveInteraction(applicationId);
         requirePreparationPermission(applicationId);
         ApplicationPreparationSession session = active(applicationId);
         if (session == null || session.getState() != SessionState.WAITING_FOR_USER)
@@ -205,6 +212,16 @@ public class ApplicationPreparationService {
             applicationId
         ).stream().filter(session -> session.getState().active())
             .findFirst().orElse(null);
+    }
+
+    public void cancelActiveForLock(Long applicationId, String lockState) {
+        ApplicationPreparationSession session = active(applicationId);
+        if (session == null) return;
+        session.cancel();
+        sessions.saveAndFlush(session);
+        events.save(new PreparationSessionEvent(session, EventType.SESSION_CANCELLED, false,
+            "Preparation cancelled because application lock changed to " + lockState,
+            session.getCurrentPage(), session.getCurrentQuestion()));
     }
 
     private ApplicationPreparationSession latest(Long applicationId) {

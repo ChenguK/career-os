@@ -37,13 +37,14 @@ class BrowserPreparationIntelligenceServiceTest {
     @Mock QuestionResearchService research;
     @Mock ApprovedAnswerService answers;
     @Mock ApplicantProfileRepository profiles;
+    @Mock ObservedQuestionMappingRepository mappings;
     private BrowserPreparationIntelligenceService service;
     private FormObservationSnapshot snapshot;
 
     @BeforeEach
     void setUp() {
         service = new BrowserPreparationIntelligenceService(
-            applications, snapshots, observed, research, answers, profiles);
+            applications, snapshots, observed, research, answers, profiles, mappings);
         snapshot = mock(FormObservationSnapshot.class);
         when(applications.findById(7L)).thenReturn(Optional.of(mock(Application.class)));
         when(snapshot.getId()).thenReturn(31L);
@@ -52,6 +53,8 @@ class BrowserPreparationIntelligenceServiceTest {
         when(profiles.findByProfileKey(ApplicantProfile.PRIMARY_PROFILE_KEY))
             .thenReturn(Optional.empty());
         when(answers.findAll()).thenReturn(List.of());
+        when(mappings.findByFormTargetApplicationIdAndExternalQuestionId(eq(7L), anyString()))
+            .thenReturn(Optional.empty());
     }
 
     @Test
@@ -70,22 +73,26 @@ class BrowserPreparationIntelligenceServiceTest {
             .thenReturn(List.of(
                 question(1L, "email", "Email address", 0, true),
                 question(2L, "ats-why", "Why do you want this role?", 1, true)));
+        when(mappings.findByFormTargetApplicationIdAndExternalQuestionId(7L, "email"))
+            .thenReturn(Optional.of(mapping("email", "email", QuestionMappingEnums.MappingSource.USER, true, "1.000")));
+        when(mappings.findByFormTargetApplicationIdAndExternalQuestionId(7L, "ats-why"))
+            .thenReturn(Optional.of(mapping("ats-why", "why_role", QuestionMappingEnums.MappingSource.EXACT_TEXT, true, "0.950")));
 
         Response result = service.analyze(
             7L, JobFamily.SOFTWARE_ENGINEER, Seniority.MID_LEVEL, null);
 
         assertThat(result.observedQuestions()).hasSize(2);
-        assertThat(result.observedQuestions().get(0).matchMethod()).isEqualTo(MatchMethod.EXTERNAL_ID);
+        assertThat(result.observedQuestions().get(0).matchMethod()).isEqualTo(MatchMethod.EXPLICIT_CONFIRMED);
         assertThat(result.observedQuestions().get(0).suggestions()).singleElement().satisfies(s -> {
             assertThat(s.source()).isEqualTo(SuggestionSource.APPLICANT_PROFILE);
             assertThat(s.value()).isEqualTo("verified@example.com");
             assertThat(s.confidence()).isEqualByComparingTo("0.99");
         });
         assertThat(result.observedQuestions().get(1).matchMethod())
-            .isEqualTo(MatchMethod.REPRESENTATIVE_QUESTION);
+            .isEqualTo(MatchMethod.EXPLICIT_CONFIRMED);
         assertThat(result.observedQuestions().get(1).suggestions()).singleElement().satisfies(s -> {
             assertThat(s.source()).isEqualTo(SuggestionSource.APPROVED_ANSWER);
-            assertThat(s.confidence()).isEqualByComparingTo("0.92");
+            assertThat(s.confidence()).isEqualByComparingTo("0.97");
         });
         assertThat(result.observedQuestions()).noneMatch(ObservedAssessment::missingAnswer);
         assertThat(result.preparationGaps()).isEmpty();
@@ -106,6 +113,10 @@ class BrowserPreparationIntelligenceServiceTest {
             .thenReturn(List.of(
                 question(1L, "ats-why", "Why role?", 0, true),
                 question(2L, "email", "Email?", 1, true)));
+        when(mappings.findByFormTargetApplicationIdAndExternalQuestionId(7L, "ats-why"))
+            .thenReturn(Optional.of(mapping("ats-why", "why_role", QuestionMappingEnums.MappingSource.USER, true, "0.950")));
+        when(mappings.findByFormTargetApplicationIdAndExternalQuestionId(7L, "email"))
+            .thenReturn(Optional.of(mapping("email", "email", QuestionMappingEnums.MappingSource.ADAPTER, false, "1.000")));
 
         Response result = service.analyze(
             7L, JobFamily.SOFTWARE_ENGINEER, Seniority.MID_LEVEL, null);
@@ -113,9 +124,11 @@ class BrowserPreparationIntelligenceServiceTest {
         assertThat(result.suggestedAnswers()).extracting(Suggestion::canonicalKey)
             .containsExactly("email", "why_role");
         assertThat(result.suggestedAnswers()).extracting(Suggestion::confidence)
-            .containsExactly(new BigDecimal("0.97"), new BigDecimal("0.92"));
+            .containsExactly(new BigDecimal("0.97"), new BigDecimal("0.97"));
         assertThat(result.suggestedAnswers()).allMatch(
             suggestion -> suggestion.source() == SuggestionSource.APPROVED_ANSWER);
+        assertThat(result.observedQuestions().get(1).matchMethod())
+            .isEqualTo(MatchMethod.ADAPTER_AUTHORITATIVE);
     }
 
     @Test
@@ -139,8 +152,7 @@ class BrowserPreparationIntelligenceServiceTest {
             .containsExactly("portfolio_url");
         assertThat(result.preparationGaps()).extracting(Gap::code)
             .containsExactly(
-                "MISSING_TRUSTED_ANSWER",
-                "MISSING_TRUSTED_ANSWER",
+                "UNCONFIRMED_QUESTION_MAPPING",
                 "UNMAPPED_OBSERVED_QUESTION",
                 "LIKELY_QUESTION_NOT_OBSERVED");
         assertThat(result.preparationGaps()).extracting(Gap::recommendation)
@@ -160,6 +172,24 @@ class BrowserPreparationIntelligenceServiceTest {
         assertThat(second).isEqualTo(first);
         verify(applications, times(2)).findById(7L);
         verifyNoMoreInteractions(applications);
+    }
+
+    @Test
+    void deterministicCandidateCannotUseApprovedAnswerBeforeMappingConfirmation() {
+        when(answers.findAll()).thenReturn(List.of(
+            approved(52L, "email", "approved@example.com")));
+        when(research.research(JobFamily.SOFTWARE_ENGINEER, Seniority.MID_LEVEL, null))
+            .thenReturn(List.of(likely("email", "Email?", "0.99", "0.95")));
+        when(observed.findBySnapshotIdOrderByDisplayOrderAscExternalQuestionIdAsc(31L))
+            .thenReturn(List.of(question(1L, "email", "Email?", 0, true)));
+
+        Response result = service.analyze(
+            7L, JobFamily.SOFTWARE_ENGINEER, Seniority.MID_LEVEL, null);
+
+        assertThat(result.observedQuestions().getFirst().mappingTrusted()).isFalse();
+        assertThat(result.observedQuestions().getFirst().suggestions()).isEmpty();
+        assertThat(result.preparationGaps()).extracting(Gap::code)
+            .contains("UNCONFIRMED_QUESTION_MAPPING");
     }
 
     private ObservedQuestion question(Long id, String externalId, String text,
@@ -194,5 +224,13 @@ class BrowserPreparationIntelligenceServiceTest {
             value, null, null, AnswerClassification.VERIFIED_REUSABLE,
             true, true, now, null, AnswerSource.MANUAL, null, true, true,
             value, null, null, null, null, now, now);
+    }
+
+    private ObservedQuestionMapping mapping(String externalId, String canonicalKey,
+        QuestionMappingEnums.MappingSource source, boolean userConfirmed, String confidence) {
+        ObservedQuestionMapping mapping = new ObservedQuestionMapping(
+            mock(ApplicationFormTarget.class), externalId);
+        mapping.confirm(canonicalKey, source, new BigDecimal(confidence), userConfirmed);
+        return mapping;
     }
 }

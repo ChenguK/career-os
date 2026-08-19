@@ -1,6 +1,7 @@
 package com.chengukargbo.careeros.applications.history;
 
 import java.util.List;
+import java.time.OffsetDateTime;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.chengukargbo.careeros.applications.*;
@@ -37,5 +38,15 @@ public class ApplicationStatusHistoryService {
         }
         return historyRepository.findByApplicationIdOrderByOccurredAtAscIdAsc(applicationId)
             .stream().map(ApplicationStatusHistoryResponse::from).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public OffsetDateTime latestEventForStatus(Long applicationId, ApplicationStatus status) {
+        return historyRepository.findByApplicationIdOrderByOccurredAtAscIdAsc(applicationId)
+            .stream()
+            .filter(event -> event.getNewStatus() == status)
+            .map(ApplicationStatusHistory::getOccurredAt)
+            .reduce((first, second) -> second)
+            .orElse(null);
     }
 }

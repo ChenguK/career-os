@@ -19,6 +19,7 @@ import com.chengukargbo.careeros.common.exception.BusinessValidationException;
 import com.chengukargbo.careeros.common.url.ApplicationUrlService;
 import com.chengukargbo.careeros.jobs.*;
 import com.chengukargbo.careeros.preparation.PreparationEnums.*;
+import com.chengukargbo.careeros.applications.lock.ApplicationLockGuard;
 
 class ApplicationPreparationServiceTest {
     private final ApplicationRepository applications = mock(ApplicationRepository.class);
@@ -29,6 +30,7 @@ class ApplicationPreparationServiceTest {
     private final ApplicationAutomationService automation = mock(ApplicationAutomationService.class);
     private final ApplicationUrlService urls = new ApplicationUrlService();
     private final FormObservationSnapshotRepository snapshots = mock(FormObservationSnapshotRepository.class);
+    private final ApplicationLockGuard lockGuard = mock(ApplicationLockGuard.class);
     private ApplicationPreparationService service;
     private Application application;
     private JobOpportunity job;
@@ -36,7 +38,7 @@ class ApplicationPreparationServiceTest {
     @BeforeEach
     void setUp() {
         service = new ApplicationPreparationService(
-            applications, jobs, targets, sessions, events, automation, urls, snapshots
+            applications, jobs, targets, sessions, events, automation, urls, snapshots, lockGuard
         );
         application = mock(Application.class);
         job = mock(JobOpportunity.class);

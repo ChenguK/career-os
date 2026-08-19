@@ -14,6 +14,7 @@ import com.chengukargbo.careeros.common.exception.BusinessValidationException;
 import com.chengukargbo.careeros.common.url.ApplicationUrlService;
 import com.chengukargbo.careeros.preparation.ObservationDtos.*;
 import com.chengukargbo.careeros.preparation.PreparationEnums.IdentitySource;
+import com.chengukargbo.careeros.preparation.PreparationEnums.MaterialType;
 import com.chengukargbo.careeros.questions.QuestionEnums.AnswerType;
 
 class FormObservationServiceTest {
@@ -21,6 +22,8 @@ class FormObservationServiceTest {
     private final ApplicationFormTargetRepository targets = mock(ApplicationFormTargetRepository.class);
     private final FormObservationSnapshotRepository snapshots = mock(FormObservationSnapshotRepository.class);
     private final ObservedQuestionRepository questions = mock(ObservedQuestionRepository.class);
+    private final ObservedMaterialRequirementRepository materialRequirements =
+        mock(ObservedMaterialRequirementRepository.class);
     private FormObservationService service;
     private Application application;
     private ApplicationFormTarget target;
@@ -29,7 +32,7 @@ class FormObservationServiceTest {
     @BeforeEach
     void setUp() {
         service = new FormObservationService(
-            applications, targets, snapshots, questions,
+            applications, targets, snapshots, questions, materialRequirements,
             new ApplicationUrlService()
         );
         application = mock(Application.class);
@@ -57,18 +60,32 @@ class FormObservationServiceTest {
             question("q-b", "Second", 2, List.of(option("no", "No", 2))),
             question("q-a", "First", 1, List.of(
                 option("yes", "Yes", 2), option("maybe", "Maybe", 1)
-            ))
-        )));
+            ))), List.of(
+                new MaterialRequirementInput("_systemfield_resume", MaterialType.RESUME,
+                    "Resume", true, ".pdf,.doc,.docx", 0, "application"),
+                new MaterialRequirementInput("portfolio_file", MaterialType.OTHER,
+                    "Portfolio attachment", false, null, 1, "application")
+            )
+        ));
 
         assertEquals(1, response.sequenceNumber());
         assertEquals(2, response.activeQuestionCount());
+        assertEquals(2, response.materialRequirementCount());
+        assertEquals(List.of("_systemfield_resume", "portfolio_file"),
+            saved.getMaterialRequirements().stream()
+                .map(ObservedMaterialRequirement::getExternalFieldId).toList());
+        assertTrue(saved.getMaterialRequirements().getFirst().isRequired());
+        assertEquals(".pdf,.doc,.docx",
+            saved.getMaterialRequirements().getFirst().getAcceptTypes());
         assertEquals(List.of("q-a", "q-b"), saved.getQuestions().stream()
             .map(ObservedQuestion::getExternalQuestionId).toList());
+        assertTrue(saved.getQuestions().stream()
+            .allMatch(question -> question.getPageKey().equals("application")));
         assertEquals(List.of("maybe", "yes"), saved.getQuestions().getFirst()
             .getOptions().stream().map(ObservedOption::getOptionValue).toList());
         assertEquals(64, response.fingerprint().length());
         assertEquals("job-1", target.getExternalRequisitionId());
-        assertEquals(IdentitySource.ADAPTER, target.getIdentitySource());
+        assertEquals(IdentitySource.USER, target.getIdentitySource());
         verify(targets).save(target);
     }
 
@@ -140,6 +157,25 @@ class FormObservationServiceTest {
         ));
         assertEquals(firstFingerprint,
             service.reconcile(12L, reordered).fingerprint());
+    }
+
+    @Test
+    void materialRequirementsAreImmutableSnapshotDataAndAffectFingerprint() {
+        SnapshotInput withResume = new SnapshotInput(null, List.of(), List.of(
+            new MaterialRequirementInput("_systemfield_resume", MaterialType.RESUME,
+                "Resume", true, ".pdf", 0, "application")
+        ));
+        String firstFingerprint = service.reconcile(12L, withResume).fingerprint();
+        FormObservationSnapshot first = saved;
+        when(snapshots.findFirstByFormTargetApplicationIdOrderBySequenceNumberDesc(12L))
+            .thenReturn(Optional.of(first));
+
+        SnapshotResponse second = service.reconcile(12L,
+            new SnapshotInput(null, List.of(), List.of()));
+
+        assertNotEquals(firstFingerprint, second.fingerprint());
+        assertEquals(1, first.getMaterialRequirements().size());
+        assertTrue(saved.getMaterialRequirements().isEmpty());
     }
 
     @Test

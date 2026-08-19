@@ -86,7 +86,7 @@ public class ImportRowPersistenceService {
             new ApplicationRequest(
                 job.id(),
                 row.status() == null ? ApplicationStatus.SAVED : row.status(),
-                row.resumeVersion(),
+            row.resumeVersion(), null,
                 Boolean.TRUE.equals(row.coverLetterNeeded()),
                 row.portfolioLink(),
                 row.githubLink(),

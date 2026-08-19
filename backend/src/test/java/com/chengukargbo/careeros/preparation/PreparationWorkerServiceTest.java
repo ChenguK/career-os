@@ -73,14 +73,17 @@ class PreparationWorkerServiceTest {
     @Test
     void recordsSafeRetryableFailureWithoutBrowserDetails() {
         var response = service.failed(
-            12L, 7L, new WorkerFailureRequest("Form could not be inspected", true)
+            12L, 7L, new WorkerFailureRequest("Form could not be inspected", true,
+                ProviderFailureCode.ASHBY_APPLICATION_ROOT_NOT_FOUND)
         );
         assertEquals(SessionState.FAILED, response.session().state());
         assertNotNull(session.getCompletedAt());
         verify(events).save(argThat(event ->
             event.getEventType() == EventType.SESSION_FAILED
                 && event.isRetryable()
-                && event.getSafeUserMessage().equals("Form could not be inspected")));
+                && event.getSafeUserMessage().equals("Form could not be inspected")
+                && event.getProviderFailureCode()
+                    == ProviderFailureCode.ASHBY_APPLICATION_ROOT_NOT_FOUND));
     }
 
     @Test

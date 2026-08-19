@@ -14,4 +14,6 @@ public interface ApplicationRepository
 
     List<Application>
         findAllByOrderByUpdatedAtDesc();
+
+    boolean existsByResumeMaterialId(Long materialId);
 }

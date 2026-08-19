@@ -3,6 +3,7 @@ package com.chengukargbo.careeros.preparation;
 import java.time.OffsetDateTime;
 
 import com.chengukargbo.careeros.preparation.PreparationEnums.EventType;
+import com.chengukargbo.careeros.preparation.PreparationEnums.ProviderFailureCode;
 
 import jakarta.persistence.*;
 import org.hibernate.annotations.Immutable;
@@ -27,17 +28,27 @@ public class PreparationSessionEvent {
     private String pageKey;
     @Column(name = "question_key", length = 200)
     private String questionKey;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "provider_failure_code", length = 80)
+    private ProviderFailureCode providerFailureCode;
 
     protected PreparationSessionEvent() {}
 
     PreparationSessionEvent(ApplicationPreparationSession session, EventType type,
         boolean retryable, String safeUserMessage, String pageKey, String questionKey) {
+        this(session, type, retryable, safeUserMessage, pageKey, questionKey, null);
+    }
+
+    PreparationSessionEvent(ApplicationPreparationSession session, EventType type,
+        boolean retryable, String safeUserMessage, String pageKey, String questionKey,
+        ProviderFailureCode providerFailureCode) {
         this.session = session;
         eventType = type;
         this.retryable = retryable;
         this.safeUserMessage = safeUserMessage;
         this.pageKey = pageKey;
         this.questionKey = questionKey;
+        this.providerFailureCode = providerFailureCode;
         occurredAt = OffsetDateTime.now();
     }
 
@@ -49,4 +60,5 @@ public class PreparationSessionEvent {
     public String getSafeUserMessage() { return safeUserMessage; }
     public String getPageKey() { return pageKey; }
     public String getQuestionKey() { return questionKey; }
+    public ProviderFailureCode getProviderFailureCode() { return providerFailureCode; }
 }

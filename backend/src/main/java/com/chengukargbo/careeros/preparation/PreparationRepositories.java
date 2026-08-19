@@ -31,6 +31,13 @@ interface ObservedQuestionRepository extends JpaRepository<ObservedQuestion, Lon
     List<ObservedQuestion> findBySnapshotIdOrderByDisplayOrderAscExternalQuestionIdAsc(Long snapshotId);
 }
 
+interface ObservedMaterialRequirementRepository
+    extends JpaRepository<ObservedMaterialRequirement, Long> {
+    List<ObservedMaterialRequirement> findBySnapshotIdOrderByDisplayOrderAscExternalFieldIdAsc(
+        Long snapshotId
+    );
+}
+
 interface ApprovedFieldPlanRepository extends JpaRepository<ApprovedFieldPlan, Long> {
     Optional<ApprovedFieldPlan> findBySessionId(Long sessionId);
 }
@@ -46,4 +53,18 @@ interface FieldPreparationResultRepository extends JpaRepository<FieldPreparatio
 
 interface PreparationReviewRepository extends JpaRepository<PreparationReview, Long> {
     Optional<PreparationReview> findBySessionId(Long sessionId);
+}
+
+interface ApprovedMaterialPlanRepository extends JpaRepository<ApprovedMaterialPlan,Long> {
+    Optional<ApprovedMaterialPlan> findBySessionId(Long sessionId);
+}
+
+interface ObservedQuestionMappingRepository extends JpaRepository<ObservedQuestionMapping, Long> {
+    Optional<ObservedQuestionMapping> findByFormTargetApplicationIdAndExternalQuestionId(Long applicationId, String externalQuestionId);
+    List<ObservedQuestionMapping> findByFormTargetApplicationIdOrderByExternalQuestionIdAsc(Long applicationId);
+    Optional<ObservedQuestionMapping> findByIdAndFormTargetApplicationId(Long id, Long applicationId);
+}
+
+interface ObservedQuestionMappingHistoryRepository extends JpaRepository<ObservedQuestionMappingHistory, Long> {
+    List<ObservedQuestionMappingHistory> findByMappingIdOrderByOccurredAtAscIdAsc(Long mappingId);
 }

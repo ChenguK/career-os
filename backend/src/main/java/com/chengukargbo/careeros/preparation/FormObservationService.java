@@ -20,6 +20,7 @@ public class FormObservationService {
     private final ApplicationFormTargetRepository targets;
     private final FormObservationSnapshotRepository snapshots;
     private final ObservedQuestionRepository questions;
+    private final ObservedMaterialRequirementRepository materialRequirements;
     private final ApplicationUrlService urls;
 
     public FormObservationService(
@@ -27,12 +28,14 @@ public class FormObservationService {
         ApplicationFormTargetRepository targets,
         FormObservationSnapshotRepository snapshots,
         ObservedQuestionRepository questions,
+        ObservedMaterialRequirementRepository materialRequirements,
         ApplicationUrlService urls
     ) {
         this.applications = applications;
         this.targets = targets;
         this.snapshots = snapshots;
         this.questions = questions;
+        this.materialRequirements = materialRequirements;
         this.urls = urls;
     }
 
@@ -51,6 +54,7 @@ public class FormObservationService {
             ));
         confirmIdentity(target, input == null ? null : input.identity());
         List<QuestionSpec> incoming = normalize(input);
+        List<MaterialRequirementSpec> incomingMaterials = normalizeMaterials(input);
         FormObservationSnapshot previous = snapshots
             .findFirstByFormTargetApplicationIdOrderBySequenceNumberDesc(
                 applicationId
@@ -75,14 +79,14 @@ public class FormObservationService {
             hash(target.getNormalizedFormUrl(),
                 Objects.toString(target.getExternalRequisitionId(), ""),
                 Objects.toString(target.getExternalFormKey(), ""),
-                fingerprint(complete))
+                fingerprint(complete), incomingMaterials.toString())
         );
         for (QuestionSpec spec : complete) {
             ObservedQuestion prior = previousById.get(spec.externalId());
             List<OptionSpec> reconciledOptions = reconcileOptions(spec, prior);
             ObservedQuestion question = new ObservedQuestion(
                 snapshot, spec.externalId(), spec.text(), spec.answerType(),
-                spec.required(), spec.active(), spec.displayOrder(),
+                spec.required(), spec.pageKey(), spec.active(), spec.displayOrder(),
                 questionFingerprint(spec, reconciledOptions)
             );
             reconciledOptions.forEach(option -> question.add(new ObservedOption(
@@ -91,6 +95,13 @@ public class FormObservationService {
             )));
             snapshot.add(question);
         }
+        incomingMaterials.forEach(requirement -> snapshot.add(
+            new ObservedMaterialRequirement(
+                snapshot, requirement.externalId(), requirement.materialType(),
+                requirement.label(), requirement.required(), requirement.acceptTypes(),
+                requirement.displayOrder(), requirement.pageKey()
+            )
+        ));
         return SnapshotResponse.from(snapshots.saveAndFlush(snapshot));
     }
 
@@ -124,6 +135,33 @@ public class FormObservationService {
         return questionResponses(snapshot.getId());
     }
 
+    @Transactional(readOnly = true)
+    public List<MaterialRequirementResponse> latestMaterialRequirements(Long applicationId) {
+        application(applicationId);
+        return snapshots.findFirstByFormTargetApplicationIdOrderBySequenceNumberDesc(applicationId)
+            .map(snapshot -> materialRequirementResponses(snapshot.getId()))
+            .orElseGet(List::of);
+    }
+
+    @Transactional(readOnly = true)
+    public List<MaterialRequirementResponse> snapshotMaterialRequirements(
+        Long applicationId, Long snapshotId
+    ) {
+        application(applicationId);
+        FormObservationSnapshot snapshot = snapshots
+            .findByIdAndFormTargetApplicationId(snapshotId, applicationId)
+            .orElseThrow(() -> new BusinessValidationException(
+                "Form observation snapshot not found"
+            ));
+        return materialRequirementResponses(snapshot.getId());
+    }
+
+    private List<MaterialRequirementResponse> materialRequirementResponses(Long snapshotId) {
+        return materialRequirements
+            .findBySnapshotIdOrderByDisplayOrderAscExternalFieldIdAsc(snapshotId)
+            .stream().map(MaterialRequirementResponse::from).toList();
+    }
+
     private List<QuestionResponse> questionResponses(Long snapshotId) {
         return questions
             .findBySnapshotIdOrderByDisplayOrderAscExternalQuestionIdAsc(snapshotId)
@@ -151,7 +189,9 @@ public class FormObservationService {
             }
             result.add(new QuestionSpec(
                 id, required(question.questionText(), "Question text is required", 1000),
-                question.answerType(), question.required(), question.displayOrder(),
+                question.answerType(), question.required(),
+                required(question.pageKey(), "Question page key is required", 200),
+                question.displayOrder(),
                 normalizeOptions(question.options()), true
             ));
         }
@@ -204,6 +244,34 @@ public class FormObservationService {
         return result;
     }
 
+    private List<MaterialRequirementSpec> normalizeMaterials(SnapshotInput input) {
+        if (input == null || input.materialRequirements() == null) return List.of();
+        Set<String> ids = new HashSet<>();
+        List<MaterialRequirementSpec> result = new ArrayList<>();
+        for (MaterialRequirementInput requirement : input.materialRequirements()) {
+            String id = required(requirement.externalFieldId(),
+                "External material field ID is required", 200);
+            if (!ids.add(id)) {
+                throw new BusinessValidationException(
+                    "Duplicate external material field ID: " + id
+                );
+            }
+            if (requirement.materialType() == null) {
+                throw new BusinessValidationException("Material type is required");
+            }
+            result.add(new MaterialRequirementSpec(
+                id, requirement.materialType(),
+                required(requirement.label(), "Material field label is required", 1000),
+                requirement.required(), optional(requirement.acceptTypes(), 1000),
+                requirement.displayOrder(),
+                required(requirement.pageKey(), "Material page key is required", 200)
+            ));
+        }
+        result.sort(Comparator.comparingInt(MaterialRequirementSpec::displayOrder)
+            .thenComparing(MaterialRequirementSpec::externalId));
+        return result;
+    }
+
     private List<OptionSpec> reconcileOptions(QuestionSpec current,
         ObservedQuestion prior) {
         List<OptionSpec> result = new ArrayList<>(current.options());
@@ -226,7 +294,7 @@ public class FormObservationService {
         return new QuestionSpec(
             question.getExternalQuestionId(), question.getQuestionText(),
             question.getAnswerType(), question.isRequired(),
-            question.getDisplayOrder(), question.getOptions().stream()
+            question.getPageKey(), question.getDisplayOrder(), question.getOptions().stream()
                 .map(option -> new OptionSpec(
                     option.getExternalOptionId(), option.getOptionValue(),
                     option.getOptionLabel(), option.getDisplayOrder(), false
@@ -244,7 +312,7 @@ public class FormObservationService {
         List<OptionSpec> options) {
         return hash(question.externalId(), question.text(),
             question.answerType().name(), Boolean.toString(question.required()),
-            Boolean.toString(question.active()), options.toString());
+            question.pageKey(), Boolean.toString(question.active()), options.toString());
     }
 
     private String fingerprint(List<QuestionSpec> questions) {
@@ -291,11 +359,16 @@ public class FormObservationService {
     private record QuestionSpec(
         String externalId, String text,
         com.chengukargbo.careeros.questions.QuestionEnums.AnswerType answerType,
-        boolean required, int displayOrder, List<OptionSpec> options,
+        boolean required, String pageKey, int displayOrder, List<OptionSpec> options,
         boolean active
     ) {}
     private record OptionSpec(
         String externalId, String value, String label,
         int displayOrder, boolean active
+    ) {}
+    private record MaterialRequirementSpec(
+        String externalId, com.chengukargbo.careeros.preparation.PreparationEnums.MaterialType materialType,
+        String label, boolean required, String acceptTypes, int displayOrder,
+        String pageKey
     ) {}
 }

@@ -22,6 +22,13 @@ public class ApplicationQuestionOption {
 
     protected ApplicationQuestionOption() {}
 
+    ApplicationQuestionOption(ApplicationQuestion question, String externalOptionId,
+        String value, String label, int displayOrder, boolean active) {
+        this.question = question; this.externalOptionId = externalOptionId;
+        this.value = value; this.label = label;
+        this.displayOrder = displayOrder; this.active = active;
+    }
+
     public Long getId() { return id; }
     public String getExternalOptionId() { return externalOptionId; }
     public String getValue() { return value; }
