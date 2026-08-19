@@ -6,8 +6,9 @@ import type { Application } from "../applications/types/application";
 import { getApprovedAnswers } from "../answers/api/approvedAnswersApi";
 import type { ApprovedAnswer } from "../answers/types/approvedAnswer";
 import { addTemplates, answerQuestion, createManualQuestion, getQuestions,
-  getTemplates, linkApprovedAnswer, questionAction, type Question,
-  type Template } from "./questionsApi";
+  getTemplates, linkApprovedAnswer, questionAction, getQuestionMappings,
+  confirmQuestionMapping, revokeQuestionMapping, type MappingReview,
+  type MappingReviewItem, type Question, type Template } from "./questionsApi";
 
 const humanize = (value: string) => value.toLowerCase().replaceAll("_", " ")
   .replace(/\b\w/g, (character) => character.toUpperCase());
@@ -26,6 +27,8 @@ export default function QuestionsPage() {
   const [manualOpen, setManualOpen] = useState(false);
   const [error, setError] = useState("");
   const [automation, setAutomation] = useState<Record<number, ApplicationAutomation>>({});
+  const [mappingReview, setMappingReview] = useState<MappingReview | null>(null);
+  const [mappingBusy, setMappingBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,6 +47,17 @@ export default function QuestionsPage() {
       });
     return () => { cancelled = true; };
   }, [focusedId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!targetId) return;
+    getQuestionMappings(targetId, family, seniority).then((review) => {
+      if (!cancelled) setMappingReview(review);
+    }).catch((caught: unknown) => {
+      if (!cancelled) setError(caught instanceof Error ? caught.message : "Question mappings could not be loaded.");
+    });
+    return () => { cancelled = true; };
+  }, [targetId, family, seniority]);
 
   const reload = () => getQuestions(focusedId).then(setQuestions);
   const replace = (updated: Question) => setQuestions((current) =>
@@ -64,7 +78,7 @@ export default function QuestionsPage() {
       <p>Review preparation questions. Nothing here submits an application.</p></header>
     {error && <p role="alert">{error}</p>}
     <label>Application <select value={targetId ?? ""}
-      onChange={(event) => setTargetId(Number(event.target.value) || null)}>
+      onChange={(event) => { setTargetId(Number(event.target.value) || null); setMappingReview(null); }}>
       <option value="">Choose an application</option>{applications.map((application) =>
         <option key={application.id} value={application.id}>{application.companyName ?? "No company"} — {application.positionTitle}</option>)}
     </select></label>
@@ -90,6 +104,18 @@ export default function QuestionsPage() {
         Add selected questions</button>}
     </section>
 
+    {targetId && <MappingReviewSection review={mappingReview} busy={mappingBusy}
+      onConfirm={async (item, key) => { setMappingBusy(true); setError(""); try {
+        await confirmQuestionMapping(targetId, item.externalQuestionId, key, family, seniority);
+        setMappingReview(await getQuestionMappings(targetId, family, seniority)); await reload();
+      } catch (caught) { setError(caught instanceof Error ? caught.message : "Mapping could not be confirmed."); }
+      finally { setMappingBusy(false); } }}
+      onRevoke={async (item) => { if (!item.mappingId) return; setMappingBusy(true); setError(""); try {
+        await revokeQuestionMapping(targetId, item.mappingId);
+        setMappingReview(await getQuestionMappings(targetId, family, seniority)); await reload();
+      } catch (caught) { setError(caught instanceof Error ? caught.message : "Mapping could not be revoked."); }
+      finally { setMappingBusy(false); } }} />}
+
     <button type="button" disabled={!targetId} onClick={() => setManualOpen((open) => !open)}>Add manual question</button>
     {manualOpen && targetId && <ManualForm applicationId={targetId}
       onCreated={(question) => { setQuestions((current) => [...current, question]); setManualOpen(false); }} />}
@@ -106,6 +132,37 @@ export default function QuestionsPage() {
           answers={answers} onReplace={replace} />)}
       </section>)}
   </main>;
+}
+
+function MappingReviewSection({ review, busy, onConfirm, onRevoke }: {
+  review: MappingReview | null; busy: boolean;
+  onConfirm: (item: MappingReviewItem, key: string) => Promise<void>;
+  onRevoke: (item: MappingReviewItem) => Promise<void>;
+}) {
+  const [choices, setChoices] = useState<Record<string, string>>({});
+  if (!review) return <section className="mapping-review"><h2>Question Mapping Review</h2><p>Loading observed ATS questions…</p></section>;
+  const ordered = [...review.questions].sort((a, b) => Number(a.mappingState === "CONFIRMED") - Number(b.mappingState === "CONFIRMED") || a.questionText.localeCompare(b.questionText));
+  return <section className="mapping-review" id="question-mapping-review"><h2>Question Mapping Review</h2>
+    <p>Confirm only mappings you recognize. CareerOS does not guess from similar wording, and questions may remain unmapped.</p>
+    {ordered.length === 0 ? <p>No active observed ATS questions.</p> : ordered.map((item) => {
+      const selected = choices[item.externalQuestionId] ?? item.canonicalQuestionKey ?? item.suggestions[0]?.canonicalKey ?? "";
+      return <article key={item.observedQuestionId}><h3>{item.questionText}{item.required ? " *" : ""}</h3>
+        <p>{humanize(item.answerType)} · <strong>{humanize(item.mappingState)}</strong></p>
+        <p>ATS field: <code>{item.externalQuestionId}</code></p>
+        <p>Form: {item.formIdentity.externalFormKey ?? item.formIdentity.externalRequisitionId ?? item.formIdentity.normalizedFormUrl}</p>
+        {item.options.length > 0 && <p>Options: {item.options.filter((option) => option.active).map((option) => option.label).join(", ")}</p>}
+        {item.suggestions.map((suggestion) => <p key={`${suggestion.source}-${suggestion.canonicalKey}`}>
+          Deterministic candidate: <strong>{suggestion.canonicalKey}</strong> ({humanize(suggestion.source)}, {Math.round(suggestion.confidence * 100)}%) — {suggestion.rationale}</p>)}
+        <label>Canonical CareerOS key<select value={selected} disabled={busy}
+          onChange={(event) => setChoices((current) => ({ ...current, [item.externalQuestionId]: event.target.value }))}>
+          <option value="">Leave unmapped</option>{review.canonicalKeys.map((option) =>
+            <option key={option.canonicalQuestionKey} value={option.canonicalQuestionKey}>{option.canonicalQuestionKey} — {option.representativeQuestion}</option>)}</select></label>
+        <button type="button" disabled={busy || !selected} onClick={() => void onConfirm(item, selected)}>
+          {item.mappingState === "CONFIRMED" ? "Change and confirm mapping" : "Confirm mapping"}</button>
+        {item.mappingState === "CONFIRMED" && <button type="button" disabled={busy} onClick={() => void onRevoke(item)}>Revoke mapping</button>}
+      </article>;
+    })}
+  </section>;
 }
 
 function ManualForm({ applicationId, onCreated }: { applicationId: number; onCreated: (question: Question) => void }) {

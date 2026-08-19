@@ -45,6 +45,12 @@ export interface ApplicationAutomation {
   blockReason: string | null; approvedForPrepAt: string | null;
   readyForReviewAt: string | null; approvedToSubmitAt: string | null; updatedAt: string;
 }
+export type ApplicationLockState = "NOT_SUBMITTED" | "SUBMITTED" | "ARCHIVED" | "TESTING";
+export interface ApplicationLock { id:number; applicationId:number; lockState:ApplicationLockState; changedAt:string; reason:string|null; createdAt:string; updatedAt:string }
+export interface ApplicationLockHistory { id:number; applicationId:number; previousLock:ApplicationLockState|null; newLock:ApplicationLockState; source:"USER"|"SYSTEM"|"AUTOMATION"; occurredAt:string; reason:string|null }
+export const getApplicationLock=(id:number)=>apiRequest<ApplicationLock>(`/api/applications/${id}/lock`);
+export const getApplicationLockHistory=(id:number)=>apiRequest<ApplicationLockHistory[]>(`/api/applications/${id}/lock/history`);
+export function applicationLockAction(id:number,action:"mark-submitted"|"archive"|"restore"|"mark-testing",reason?:string){return apiRequest<ApplicationLock>(`/api/applications/${id}/lock/${action}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({reason:reason??null})});}
 
 export function getApplicationAutomation(id: number): Promise<ApplicationAutomation> {
   return apiRequest<ApplicationAutomation>(`/api/applications/${id}/automation`);
@@ -215,6 +221,25 @@ export function updateApplication(
     },
     body: JSON.stringify(input),
   });
+}
+
+export interface ManualSubmissionResponse {
+  application: Application;
+  lock: ApplicationLock;
+}
+
+export function markApplicationApplied(
+  id: number,
+  applicationDate: string,
+): Promise<ManualSubmissionResponse> {
+  return apiRequest<ManualSubmissionResponse>(
+    `/api/applications/${id}/mark-applied`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ applicationDate }),
+    },
+  );
 }
 
 export function deleteApplication(id: number): Promise<void> {

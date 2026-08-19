@@ -169,11 +169,12 @@ export default function ApplicantProfileForm({
 
       <fieldset>
         <legend>Application Defaults</legend>
-        <label>Default résumé version
+        <label>Legacy default résumé label
           <input name="defaultResumeVersion"
             value={form.defaultResumeVersion} onChange={handleChange}
             maxLength={100} />
         </label>
+        <p className="field-help">Kept for existing records and spreadsheet compatibility. Choose the real default résumé in Career Materials.</p>
       </fieldset>
 
       {error && <p role="alert">{error}</p>}

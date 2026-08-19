@@ -1,0 +1,1 @@
+export const PROFILE_MATERIAL_DISPLAY_LIMIT = 5;

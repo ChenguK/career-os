@@ -1,9 +1,18 @@
 import {
   NavLink,
   Outlet,
+  useLocation,
 } from "react-router-dom";
+import { useState } from "react";
 
 export default function AppLayout() {
+  const location = useLocation();
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+
+  function closeProfileMenu() {
+    setProfileMenuOpen(false);
+  }
+
   return (
     <>
       <nav
@@ -46,14 +55,37 @@ export default function AppLayout() {
           Companies
         </NavLink>
 
-        <NavLink
-          to="/profile"
-          className={({ isActive }) =>
-            isActive ? "active" : undefined
-          }
+        <div
+          className="app-navigation__dropdown"
+          onMouseEnter={() => setProfileMenuOpen(true)}
+          onMouseLeave={() => setProfileMenuOpen(false)}
+          onFocus={() => setProfileMenuOpen(true)}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) closeProfileMenu();
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              closeProfileMenu();
+              event.currentTarget.querySelector<HTMLButtonElement>("button")?.focus();
+            }
+          }}
         >
-          Applicant Profile
-        </NavLink>
+          <button
+            type="button"
+            className={location.pathname === "/profile" || location.pathname === "/materials" ? "active" : undefined}
+            aria-haspopup="menu"
+            aria-expanded={profileMenuOpen}
+            onClick={() => setProfileMenuOpen(true)}
+          >
+            Applicant Profile
+          </button>
+          {profileMenuOpen && (
+            <div className="app-navigation__menu" role="menu">
+              <NavLink to="/profile" role="menuitem" onClick={closeProfileMenu}>Profile</NavLink>
+              <NavLink to="/materials" role="menuitem" onClick={closeProfileMenu}>Materials</NavLink>
+            </div>
+          )}
+        </div>
 
         <NavLink
           to="/approved-answers"

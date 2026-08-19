@@ -10,6 +10,9 @@ import type {
   ApplicantProfile,
   ApplicantProfileInput,
 } from "../types/applicantProfile";
+import { getCareerMaterials } from "../api/careerMaterialsApi";
+import type { CareerMaterial } from "../types/careerMaterial";
+import CareerMaterialsSummary from "../components/CareerMaterialsSummary";
 import {
   emptyApplicantProfileInput,
   profileToInput,
@@ -28,6 +31,7 @@ export default function ApplicantProfilePage() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [materials,setMaterials]=useState<CareerMaterial[]>([]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -36,6 +40,7 @@ export default function ApplicantProfilePage() {
         const result = await getApplicantProfile();
         if (!isCancelled) {
           setProfile(result);
+          if(result.exists) setMaterials(await getCareerMaterials());
         }
       } catch (caughtError) {
         if (!isCancelled) {
@@ -139,6 +144,8 @@ export default function ApplicantProfilePage() {
           onSubmit={save}
         />
       )}
+
+      {profile?.exists && <CareerMaterialsSummary materials={materials} />}
 
       {message && <p className="status-message" role="status">{message}</p>}
     </main>

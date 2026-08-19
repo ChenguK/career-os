@@ -71,6 +71,7 @@ describe("ApplicationForm", () => {
         heading="Add application"
         submitLabel="Add application"
         jobs={[job]}
+        resumeMaterials={[{id:7,applicantProfileId:1,materialType:"RESUME",displayName:"Software Engineering Resume",originalFilename:"resume.pdf",mimeType:"application/pdf",fileSize:1000,active:true,notes:null,targetJobFamily:"Software Engineering",targetSeniority:null,versionLabel:null,profileDefault:true,createdAt:"2026-08-01T00:00:00Z",updatedAt:"2026-08-01T00:00:00Z"}]}
         onSubmit={onSubmit}
       />,
     );
@@ -82,12 +83,12 @@ describe("ApplicationForm", () => {
 
     await user.selectOptions(
       screen.getByLabelText("Status"),
-      "APPLIED",
+      "PREPARING",
     );
 
     await user.selectOptions(
       screen.getByLabelText("Résumé version"),
-      "Software Engineering",
+      "7",
     );
 
     await user.click(
@@ -125,8 +126,8 @@ describe("ApplicationForm", () => {
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({
         jobOpportunityId: 2,
-        status: "APPLIED",
-        resumeVersion: "Software Engineering",
+        status: "PREPARING",
+        resumeMaterialId: 7,
         coverLetterNeeded: true,
         recruiterName: "Taylor Recruiter",
         recruiterEmail: "taylor@example.com",

@@ -24,9 +24,11 @@ import {
   getApplicationTrackerRow,
   getApplications,
   updateApplication,
+  markApplicationApplied,
 } from "../api/applicationsApi";
 import ApplicationForm from "../components/ApplicationForm";
 import ApplicationList from "../components/ApplicationList";
+import ManualSubmissionDialog from "../components/ManualSubmissionDialog";
 import ImportJobsPanel from "../components/ImportJobsPanel";
 import TrackerRecordEditor from "../components/TrackerRecordEditor";
 import type {
@@ -44,6 +46,8 @@ import type {
 import type { RemoteType } from "../../jobs/types/job";
 import { readDashboardHandoff } from "../types/dashboardHandoff";
 import type { TrackerEditorFocus } from "../components/TrackerRecordEditor";
+import { getCareerMaterials } from "../../profile/api/careerMaterialsApi";
+import type { CareerMaterial } from "../../profile/types/careerMaterial";
 
 export default function ApplicationsPage() {
   const location = useLocation();
@@ -55,6 +59,7 @@ export default function ApplicationsPage() {
 
   const [jobs, setJobs] = useState<JobOpportunity[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [resumeMaterials,setResumeMaterials]=useState<CareerMaterial[]>([]);
   const [trackerRows, setTrackerRows] = useState<
     ApplicationTrackerRow[]
   >([]);
@@ -74,6 +79,8 @@ export default function ApplicationsPage() {
     useState<"asc" | "desc">("asc");
 
   const [editingRecord, setEditingRecord] =
+    useState<ApplicationTrackerRow | null>(null);
+  const [manualSubmissionRow, setManualSubmissionRow] =
     useState<ApplicationTrackerRow | null>(null);
   const [creatingForJobId, setCreatingForJobId] =
     useState<number | null>(null);
@@ -164,17 +171,19 @@ export default function ApplicationsPage() {
       setError("");
 
       try {
-        const [applicationResults, jobResults, companyResults] =
+        const [applicationResults, jobResults, companyResults, materialResults] =
           await Promise.all([
             getApplications(),
             getJobs(),
             getCompanies(),
+            getCareerMaterials().catch(()=>[]),
           ]);
 
         if (!isCancelled) {
           setApplications(applicationResults);
           setJobs(jobResults);
           setCompanies(companyResults);
+          setResumeMaterials(materialResults);
         }
       } catch (caughtError) {
         if (!isCancelled) {
@@ -438,6 +447,22 @@ export default function ApplicationsPage() {
     return application;
   }
 
+  async function handleMarkApplied(applicationDate: string) {
+    if (manualSubmissionRow?.applicationId == null) {
+      throw new Error("No application has been selected.");
+    }
+    await markApplicationApplied(manualSubmissionRow.applicationId, applicationDate);
+    const refreshedRow = await getApplicationTrackerRow(manualSubmissionRow.jobOpportunityId);
+    setTrackerRows((current) => current.map((row) =>
+      row.jobOpportunityId === refreshedRow.jobOpportunityId ? refreshedRow : row));
+    if (editingRecord?.jobOpportunityId === refreshedRow.jobOpportunityId) {
+      setEditingRecord(refreshedRow);
+    }
+    setManualSubmissionRow(null);
+    setMessage(`${refreshedRow.positionTitle} was marked Applied.`);
+    await Promise.all([loadApplications(), loadTracker(trackerQuery)]);
+  }
+
   async function handleJobUpdate(
     input: JobOpportunityInput,
   ): Promise<JobOpportunity> {
@@ -646,11 +671,13 @@ export default function ApplicationsPage() {
           onSaveJob={handleJobUpdate}
           onSaveApplication={handleApplicationUpdate}
           onAddApplication={handleAddApplication}
+          onMarkApplied={setManualSubmissionRow}
           onClose={() => {
             setEditingRecord(null);
             setEditorFocus(undefined);
           }}
           initialFocus={editorFocus}
+          resumeMaterials={resumeMaterials}
         />
       ) : (
         <ApplicationForm
@@ -658,9 +685,11 @@ export default function ApplicationsPage() {
           heading="Add application"
           submitLabel="Add application"
           jobs={availableJobs}
+          resumeMaterials={resumeMaterials}
           initialValues={{
             ...emptyApplicationInput,
             jobOpportunityId: creatingForJobId,
+            resumeMaterialId: resumeMaterials.find(material=>material.profileDefault&&material.active)?.id??null,
           }}
           onSubmit={handleCreate}
           initialFocusField={
@@ -864,8 +893,15 @@ export default function ApplicationsPage() {
           onEdit={handleEdit}
           onDelete={handleDelete}
           onAddApplication={handleAddApplication}
+          onMarkApplied={setManualSubmissionRow}
         />
       )}
+
+      {manualSubmissionRow && <ManualSubmissionDialog
+        row={manualSubmissionRow}
+        onCancel={() => setManualSubmissionRow(null)}
+        onConfirm={handleMarkApplied}
+      />}
 
       {!isLoading && !isTrackerLoading && !error &&
         trackerTotalRows > 0 && (

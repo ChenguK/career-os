@@ -8,6 +8,7 @@ import type { ApplicationTrackerRow } from "../types/applicationTracker";
 import { getApplicationStatusHistory, getApplicationAutomation,
   automationAction, getApplicationPreparation,
   getApplicationPreparationEvents, preparationAction } from "../api/applicationsApi";
+import { getApplicationLock, getApplicationLockHistory, applicationLockAction } from "../api/applicationsApi";
 import { getQuestions } from "../../questions/questionsApi";
 
 vi.mock("../api/applicationsApi", () => ({
@@ -18,6 +19,9 @@ vi.mock("../api/applicationsApi", () => ({
   getApplicationPreparation: vi.fn(),
   getApplicationPreparationEvents: vi.fn(),
   preparationAction: vi.fn(),
+  getApplicationLock: vi.fn(),
+  getApplicationLockHistory: vi.fn(),
+  applicationLockAction: vi.fn(),
 }));
 vi.mock("../../questions/questionsApi", () => ({ getQuestions: vi.fn() }));
 
@@ -118,6 +122,7 @@ function renderEditor(source = row) {
     onSaveJob: vi.fn().mockResolvedValue(job),
     onSaveApplication: vi.fn().mockResolvedValue({ id: 101 }),
     onAddApplication: vi.fn(),
+    onMarkApplied: vi.fn(),
     onClose: vi.fn(),
   };
   render(<MemoryRouter><TrackerRecordEditor {...props} /></MemoryRouter>);
@@ -144,6 +149,9 @@ describe("TrackerRecordEditor", () => {
     vi.mocked(getApplicationPreparationEvents).mockReset();
     vi.mocked(getApplicationPreparationEvents).mockResolvedValue([]);
     vi.mocked(preparationAction).mockReset();
+    vi.mocked(getApplicationLock).mockReset();
+    vi.mocked(getApplicationLock).mockResolvedValue({id:1,applicationId:101,lockState:"NOT_SUBMITTED",changedAt:"2026-08-18T12:00:00Z",reason:null,createdAt:"2026-08-18T12:00:00Z",updatedAt:"2026-08-18T12:00:00Z"});
+    vi.mocked(getApplicationLockHistory).mockReset();vi.mocked(getApplicationLockHistory).mockResolvedValue([]);vi.mocked(applicationLockAction).mockReset();
   });
 
   it("initializes a session and reports session-only capability", async () => {
@@ -172,7 +180,7 @@ describe("TrackerRecordEditor", () => {
     await user.click(screen.getByRole("button", { name: "Initialize Preparation" }));
     expect(preparationAction).toHaveBeenCalledWith(101, "initialize");
     expect(await screen.findByText(/records preparation sessions only/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /submit/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Submit application" })).not.toBeInTheDocument();
   });
 
   it("resumes an explicitly paused preparation from its checkpoint", async () => {
@@ -217,7 +225,8 @@ describe("TrackerRecordEditor", () => {
     expect(screen.getByLabelText("Job description")).toHaveValue("Build the platform");
 
     expect(screen.getByLabelText("Status")).toHaveValue("PHONE_SCREEN");
-    expect(screen.getByLabelText("Résumé version")).toHaveValue("Software Engineering");
+    expect(screen.getByLabelText("Résumé version")).toHaveValue("");
+    expect(screen.getByText(/Legacy résumé label: Software Engineering/)).toBeInTheDocument();
     expect(screen.getByLabelText("Cover letter needed")).toBeChecked();
     expect(screen.getByLabelText("Portfolio link")).toHaveValue("https://portfolio.test");
     expect(screen.getByLabelText("GitHub link")).toHaveValue("https://github.test");
@@ -337,5 +346,16 @@ describe("TrackerRecordEditor", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Job save failed");
     expect(recruiter).toHaveValue("Unsaved Recruiter");
     expect(props.onSaveApplication).not.toHaveBeenCalled();
+  });
+
+  it("separates a submitted lock from lifecycle and preparation while protecting resume selection", async()=>{
+    vi.mocked(getApplicationLock).mockResolvedValue({id:1,applicationId:101,lockState:"SUBMITTED",changedAt:"2026-08-18T12:00:00Z",reason:"Already submitted",createdAt:"2026-08-18T12:00:00Z",updatedAt:"2026-08-18T12:00:00Z"});
+    renderEditor();
+    expect(await screen.findByText("Submitted")).toBeInTheDocument();
+    expect(screen.getByLabelText("Résumé version")).toBeDisabled();
+    expect(screen.getByLabelText("Recruiter name")).toBeEnabled();
+    expect(screen.getByRole("button",{name:"Initialize Preparation"})).toBeDisabled();
+    expect(screen.getByRole("button",{name:"Approve for Preparation"})).toBeDisabled();
+    expect(screen.getByLabelText("Status")).toHaveValue("PHONE_SCREEN");
   });
 });

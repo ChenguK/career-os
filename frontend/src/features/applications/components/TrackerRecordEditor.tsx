@@ -26,7 +26,13 @@ import {
   type ApplicationPreparation,
   type PreparationSessionEvent,
   type ApplicationStatusHistoryEvent,
+  getApplicationLock,
+  getApplicationLockHistory,
+  applicationLockAction,
+  type ApplicationLock,
+  type ApplicationLockHistory,
 } from "../api/applicationsApi";
+import type { CareerMaterial } from "../../profile/types/careerMaterial";
 
 interface TrackerRecordEditorProps {
   row: ApplicationTrackerRow;
@@ -35,8 +41,10 @@ interface TrackerRecordEditorProps {
   onSaveJob: (input: JobOpportunityInput) => Promise<JobOpportunity>;
   onSaveApplication: (input: ApplicationInput) => Promise<Application>;
   onAddApplication: (jobOpportunityId: number) => void;
+  onMarkApplied: (row: ApplicationTrackerRow) => void;
   onClose: () => void;
   initialFocus?: TrackerEditorFocus;
+  resumeMaterials?: CareerMaterial[];
 }
 
 export type TrackerEditorFocus =
@@ -86,6 +94,7 @@ function applicationInput(row: ApplicationTrackerRow): ApplicationInput {
     jobOpportunityId: row.jobOpportunityId,
     status: row.status ?? "SAVED",
     resumeVersion: row.resumeVersion ?? "",
+    resumeMaterialId: row.resumeMaterialId,
     coverLetterNeeded: row.coverLetterNeeded ?? false,
     portfolioLink: row.portfolioLink ?? "",
     githubLink: row.githubLink ?? "",
@@ -117,8 +126,10 @@ export default function TrackerRecordEditor({
   onSaveJob,
   onSaveApplication,
   onAddApplication,
+  onMarkApplied,
   onClose,
   initialFocus,
+  resumeMaterials = [],
 }: TrackerRecordEditorProps) {
   const [jobMessage, setJobMessage] = useState("");
   const [applicationMessage, setApplicationMessage] = useState("");
@@ -128,10 +139,15 @@ export default function TrackerRecordEditor({
   const [questions, setQuestions] = useState<Question[]>([]);
   const [automation, setAutomation] = useState<ApplicationAutomation | null>(null);
   const [automationError, setAutomationError] = useState("");
+  const [automationMessage,setAutomationMessage]=useState("");
+  const [automationBusy,setAutomationBusy]=useState(false);
   const [preparation, setPreparation] = useState<ApplicationPreparation | null>(null);
   const [preparationEvents, setPreparationEvents] = useState<PreparationSessionEvent[]>([]);
   const [preparationError, setPreparationError] = useState("");
   const [preparationBusy, setPreparationBusy] = useState(false);
+  const [applicationLock,setApplicationLock]=useState<ApplicationLock|null>(null);
+  const [lockHistory,setLockHistory]=useState<ApplicationLockHistory[]>([]);
+  const [lockError,setLockError]=useState("");const [lockMessage,setLockMessage]=useState("");const [lockBusy,setLockBusy]=useState(false);
   const applicationSectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -165,6 +181,10 @@ export default function TrackerRecordEditor({
     return () => { cancelled = true; };
   }, [row.applicationId]);
 
+  async function loadLock(applicationId:number){const [lock,events]=await Promise.all([getApplicationLock(applicationId),getApplicationLockHistory(applicationId)]);setApplicationLock(lock);setLockHistory(events);}
+  useEffect(()=>{if(row.applicationId===null)return;let cancelled=false;Promise.all([getApplicationLock(row.applicationId),getApplicationLockHistory(row.applicationId)]).then(([lock,events])=>{if(!cancelled){setApplicationLock(lock);setLockHistory(events);}}).catch((caught:unknown)=>{if(!cancelled)setLockError(caught instanceof Error?caught.message:"Application lock could not be loaded.");});return()=>{cancelled=true;};},[row.applicationId]);
+  async function runLockAction(action:"mark-submitted"|"archive"|"restore"|"mark-testing"){if(row.applicationId===null)return;setLockBusy(true);setLockError("");setLockMessage("");try{const updated=await applicationLockAction(row.applicationId,action);setApplicationLock(updated);await loadLock(row.applicationId);setLockMessage(`Application lock updated: ${humanize(updated.lockState)}.`);}catch(caught){setLockError(caught instanceof Error?caught.message:"Application lock could not be updated.");}finally{setLockBusy(false);}}
+
   async function loadPreparation(applicationId: number) {
     const [state, events] = await Promise.all([
       getApplicationPreparation(applicationId),
@@ -172,6 +192,13 @@ export default function TrackerRecordEditor({
     ]);
     setPreparation(state);
     setPreparationEvents(events);
+  }
+
+  async function runAutomationAction(action:"approve-prep"|"mark-ready"|"approve-submit"|"revoke"){
+    if(row.applicationId===null)return;setAutomationBusy(true);setAutomationError("");setAutomationMessage("");
+    try{const updated=await automationAction(row.applicationId,action);setAutomation(updated);setAutomationMessage(`Preparation permission updated: ${humanize(updated.state)}.`);}
+    catch(caught){setAutomationError(caught instanceof Error?caught.message:"Preparation permission could not be updated.");}
+    finally{setAutomationBusy(false);}
   }
 
   useEffect(() => {
@@ -286,6 +313,8 @@ export default function TrackerRecordEditor({
             submitLabel="Save Application Details"
             jobs={jobs}
             initialValues={applicationInput(row)}
+            resumeMaterials={resumeMaterials}
+            resumeSelectionDisabled={applicationLock?.lockState === "SUBMITTED" || applicationLock?.lockState === "ARCHIVED"}
             isEditing
             onSubmit={saveApplication}
             onCancel={onClose}
@@ -298,9 +327,20 @@ export default function TrackerRecordEditor({
             }
           />
           {applicationMessage && <p role="status">{applicationMessage}</p>}
+          <section className="application-lock" aria-labelledby="application-lock-heading">
+            <h3 id="application-lock-heading">Application Lock</h3>
+            {lockError&&<p role="alert">{lockError}</p>}{lockMessage&&<p role="status">{lockMessage}</p>}
+            {applicationLock?<><p><strong>{humanize(applicationLock.lockState)}</strong></p><p className="field-help">Lifecycle, preparation permission, and lock state are independent safety domains.</p><div className="approved-answer-actions">
+              {applicationLock.lockState==="NOT_SUBMITTED"&&(row.status==="SAVED"||row.status==="PREPARING")&&<button type="button" disabled={lockBusy} onClick={()=>onMarkApplied(row)}>Mark as Applied</button>}
+              {applicationLock.lockState==="NOT_SUBMITTED"&&<button type="button" disabled={lockBusy} onClick={()=>void runLockAction("mark-testing")}>Mark as Testing</button>}
+              {applicationLock.lockState!=="ARCHIVED"&&<button type="button" disabled={lockBusy} onClick={()=>void runLockAction("archive")}>Archive Application</button>}
+              {(applicationLock.lockState==="ARCHIVED"||applicationLock.lockState==="TESTING")&&<button type="button" disabled={lockBusy} onClick={()=>void runLockAction("restore")}>Restore</button>}
+            </div><details><summary>Lock history ({lockHistory.length})</summary><ol>{lockHistory.map(event=><li key={event.id}>{humanize(event.newLock)} — {event.reason??humanize(event.source)}</li>)}</ol></details></>:<p>Loading application lock…</p>}
+          </section>
           <section className="automation-summary" aria-labelledby="automation-summary-heading">
             <h3 id="automation-summary-heading">Application Preparation</h3>
             {automationError && <p role="alert">{automationError}</p>}
+            {automationMessage&&<p role="status">{automationMessage}</p>}
             {automation && <>
               <p><strong>{humanize(automation.state)}</strong> · {humanize(automation.submissionMode)}</p>
               <p>{automation.unresolvedRequiredCount} unresolved required · {automation.blockerCount} blockers</p>
@@ -311,15 +351,15 @@ export default function TrackerRecordEditor({
                 {['UNKNOWN','GREENHOUSE','LEVER','ASHBY','WORKDAY','ICIMS','TALEO','CUSTOM'].map((value) =>
                   <option key={value} value={value}>{humanize(value)}</option>)}</select></label>
               <div className="approved-answer-actions">
-                {automation.state === "NOT_APPROVED" && <button type="button" onClick={() =>
-                  void automationAction(automation.applicationId, "approve-prep").then(setAutomation)}>Approve for Preparation</button>}
+                {automation.state === "NOT_APPROVED" && <button type="button" disabled={automationBusy || applicationLock?.lockState === "SUBMITTED" || applicationLock?.lockState === "ARCHIVED"} onClick={() =>
+                  void runAutomationAction("approve-prep")}>{automationBusy?"Updating…":"Approve for Preparation"}</button>}
                 {(automation.state === "APPROVED_FOR_PREP" || automation.state === "NEEDS_ANSWERS") &&
-                  <button type="button" disabled={automation.unresolvedRequiredCount > 0 || automation.blockerCount > 0}
-                    onClick={() => void automationAction(automation.applicationId, "mark-ready").then(setAutomation)}>Mark Ready for Review</button>}
-                {automation.state === "READY_FOR_REVIEW" && <button type="button" onClick={() =>
-                  void automationAction(automation.applicationId, "approve-submit").then(setAutomation)}>Approve to Submit</button>}
-                {automation.state !== "NOT_APPROVED" && <button type="button" onClick={() =>
-                  void automationAction(automation.applicationId, "revoke").then(setAutomation)}>Revoke Permission</button>}
+                  <button type="button" disabled={automationBusy || automation.unresolvedRequiredCount > 0 || automation.blockerCount > 0}
+                    onClick={() => void runAutomationAction("mark-ready")}>Mark Ready for Review</button>}
+                {automation.state === "READY_FOR_REVIEW" && <button type="button" disabled={automationBusy} onClick={() =>
+                  void runAutomationAction("approve-submit")}>Approve to Submit</button>}
+                {automation.state !== "NOT_APPROVED" && <button type="button" disabled={automationBusy} onClick={() =>
+                  void runAutomationAction("revoke")}>Revoke Permission</button>}
               </div>
               {automation.state === "APPROVED_TO_SUBMIT" && <p>Approved to Submit means CareerOS has permission to submit this application once a supported submission mechanism exists. No submission occurs from this action today.</p>}
             </>}
@@ -328,6 +368,7 @@ export default function TrackerRecordEditor({
             <h3 id="question-summary-heading">Application Questions</h3>
             <p>{questions.filter((question) => question.status === "UNANSWERED").length} unanswered · {questions.filter((question) => question.status === "NEEDS_REVIEW").length} needs review · {questions.filter((question) => question.status === "BLOCKED").length} blockers</p>
             <Link to={`/questions?applicationId=${row.applicationId}`}>Open Question Queue</Link>
+            <Link to={`/questions?applicationId=${row.applicationId}#question-mapping-review`}>Review Question Mappings</Link>
           </section>
           <section className="preparation-session" aria-labelledby="preparation-session-heading">
             <h3 id="preparation-session-heading">Preparation Session</h3>
@@ -348,7 +389,7 @@ export default function TrackerRecordEditor({
                 {preparation.session.currentQuestion ? ` Current question: ${preparation.session.currentQuestion}.` : ""}
               </p>}
               <div className="approved-answer-actions">
-                {!preparation.session && <button type="button" disabled={preparationBusy}
+                {!preparation.session && <button type="button" disabled={preparationBusy || applicationLock?.lockState === "SUBMITTED" || applicationLock?.lockState === "ARCHIVED"}
                   onClick={() => void runPreparationAction("initialize")}>Initialize Preparation</button>}
                 {preparation.session && ["INITIALIZED", "OPENING", "COLLECTING_QUESTIONS", "WAITING_FOR_USER", "PREPARING_FIELDS"].includes(preparation.session.state) &&
                   <button type="button" disabled={preparationBusy}

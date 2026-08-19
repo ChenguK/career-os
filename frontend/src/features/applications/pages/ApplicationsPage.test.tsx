@@ -47,9 +47,13 @@ vi.mock("../api/applicationsApi", () => ({
   getApplicationPreparation: vi.fn().mockResolvedValue({ capability: "SESSION_ONLY", session: null }),
   getApplicationPreparationEvents: vi.fn().mockResolvedValue([]),
   preparationAction: vi.fn(),
+  getApplicationLock: vi.fn().mockResolvedValue({id:1,applicationId:101,lockState:"NOT_SUBMITTED",changedAt:"2026-08-18T12:00:00Z",reason:null,createdAt:"2026-08-18T12:00:00Z",updatedAt:"2026-08-18T12:00:00Z"}),
+  getApplicationLockHistory: vi.fn().mockResolvedValue([]),
+  applicationLockAction: vi.fn(),
   persistCsvImport: vi.fn(),
   previewCsvImport: vi.fn(),
   updateApplication: vi.fn(),
+  markApplicationApplied: vi.fn(),
 }));
 
 vi.mock("../../jobs/api/jobsApi", () => ({
@@ -627,7 +631,8 @@ describe("ApplicationsPage", () => {
       .toHaveValue("New York, NY");
     expect(screen.getByLabelText("Status")).toHaveValue("APPLIED");
     expect(screen.getByLabelText("Résumé version"))
-      .toHaveValue("Software Engineering");
+      .toHaveValue("");
+    expect(screen.getByText(/Legacy résumé label: Software Engineering/)).toBeInTheDocument();
   });
 
   it("keeps import and tracker editing mutually exclusive", async () => {

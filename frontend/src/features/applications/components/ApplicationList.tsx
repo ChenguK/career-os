@@ -1,214 +1,33 @@
-import type {
-  ApplicationStatus,
-} from "../types/application";
+import { useMemo, useState } from "react";
+import { automationAction, type ApplicationAutomation } from "../api/applicationsApi";
+import type { ApplicationStatus } from "../types/application";
 import type { ApplicationTrackerRow } from "../types/applicationTracker";
 import type { RemoteType } from "../../jobs/types/job";
 
-interface ApplicationListProps {
-  rows: ApplicationTrackerRow[];
-  deletingId: number | null;
-  onEdit: (row: ApplicationTrackerRow) => void;
-  onDelete: (row: ApplicationTrackerRow) => Promise<void>;
-  onAddApplication: (jobOpportunityId: number) => void;
-}
+interface Props { rows:ApplicationTrackerRow[]; deletingId:number|null; onEdit:(row:ApplicationTrackerRow)=>void; onDelete:(row:ApplicationTrackerRow)=>Promise<void>; onAddApplication:(id:number)=>void; onMarkApplied:(row:ApplicationTrackerRow)=>void }
+type AutomationState=ApplicationAutomation["state"];
+const statusLabels:Record<ApplicationStatus,string>={SAVED:"Saved",PREPARING:"Preparing",APPLIED:"Applied",PHONE_SCREEN:"Phone Screen",INTERVIEW_ONE:"Interview 1",INTERVIEW_TWO:"Interview 2",OFFER:"Offer",REJECTED:"Rejected",WITHDRAWN:"Withdrawn",CLOSED:"Closed"};
+const automationLabels:Record<AutomationState,string>={NOT_APPROVED:"Not approved",APPROVED_FOR_PREP:"Approved",NEEDS_ANSWERS:"Needs answers",BLOCKED:"Blocked",READY_FOR_REVIEW:"Ready for review",APPROVED_TO_SUBMIT:"Approved to submit"};
+const remoteLabels:Record<RemoteType,string>={REMOTE:"Remote",HYBRID:"Hybrid",ONSITE:"Onsite",UNKNOWN:"Unknown"};
+const lockLabels={NOT_SUBMITTED:"Not Submitted",SUBMITTED:"Submitted",ARCHIVED:"Archived",TESTING:"Testing"} as const;
+function formatDate(value:string|null|undefined){if(!value)return "—";return new Intl.DateTimeFormat("en-US",{month:"short",day:"numeric",year:"numeric",timeZone:"UTC"}).format(new Date(value));}
+function locked(row:ApplicationTrackerRow){return row.lockState==="SUBMITTED"||row.lockState==="ARCHIVED";}
 
-const statusLabels: Record<ApplicationStatus, string> = {
-  SAVED: "Saved",
-  PREPARING: "Preparing",
-  APPLIED: "Applied",
-  PHONE_SCREEN: "Phone Screen",
-  INTERVIEW_ONE: "Interview 1",
-  INTERVIEW_TWO: "Interview 2",
-  OFFER: "Offer",
-  REJECTED: "Rejected",
-  WITHDRAWN: "Withdrawn",
-  CLOSED: "Closed",
-};
-
-const remoteTypeLabels: Record<RemoteType, string> = {
-  REMOTE: "Remote",
-  HYBRID: "Hybrid",
-  ONSITE: "Onsite",
-  UNKNOWN: "Unknown",
-};
-
-function formatDate(value: string | null): string {
-  if (!value) {
-    return "—";
-  }
-
-  const [year, month, day] = value.split("-").map(Number);
-
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(new Date(year, month - 1, day));
-}
-
-function formatSalary(row: ApplicationTrackerRow): string {
-  if (row.salaryMin === null && row.salaryMax === null) {
-    return "—";
-  }
-
-  const formatter = new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: row.salaryCurrency,
-    maximumFractionDigits: 0,
-  });
-
-  if (row.salaryMin !== null && row.salaryMax !== null) {
-    return `${formatter.format(row.salaryMin)}–${formatter.format(
-      row.salaryMax,
-    )}`;
-  }
-
-  if (row.salaryMin !== null) {
-    return `From ${formatter.format(row.salaryMin)}`;
-  }
-
-  return `Up to ${formatter.format(row.salaryMax ?? 0)}`;
-}
-
-export default function ApplicationList({
-  rows,
-  deletingId,
-  onEdit,
-  onDelete,
-  onAddApplication,
-}: ApplicationListProps) {
-  if (rows.length === 0) {
-    return <p>No tracked jobs found.</p>;
-  }
-
-  return (
-    <section aria-labelledby="application-list-heading">
-      <h2 id="application-list-heading">Applications</h2>
-
-      <div className="application-table-container">
-        <table className="application-table">
-          <thead>
-            <tr>
-              <th scope="col">Company</th>
-              <th scope="col">Position Title</th>
-              <th scope="col">Status</th>
-              <th scope="col">Priority</th>
-              <th scope="col">Match Score</th>
-              <th scope="col">Location</th>
-              <th scope="col">Work Arrangement</th>
-              <th scope="col">Employment Type</th>
-              <th scope="col">Salary</th>
-              <th scope="col">Application URL</th>
-              <th scope="col">Date Posted</th>
-              <th scope="col">Application Date</th>
-              <th scope="col">Follow-Up Date</th>
-              <th scope="col">Resume Version</th>
-              <th scope="col">Cover Letter Needed</th>
-              <th scope="col">Source</th>
-              <th scope="col">Actions</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {rows.map((row) => {
-              const hasApplication = row.applicationId !== null;
-
-              return (
-                <tr key={row.jobOpportunityId}>
-                  <td>{row.companyName ?? "—"}</td>
-                  <th scope="row">{row.positionTitle}</th>
-                  <td>
-                    {row.status
-                      ? statusLabels[row.status]
-                      : statusLabels.SAVED}
-                  </td>
-                  <td>{row.priority}</td>
-                  <td>
-                    {row.matchScore === null
-                      ? "—"
-                      : `${row.matchScore}/10`}
-                  </td>
-                  <td>{row.location ?? "—"}</td>
-                  <td>{remoteTypeLabels[row.remoteType]}</td>
-                  <td>{row.employmentType ?? "—"}</td>
-                  <td>{formatSalary(row)}</td>
-                  <td>
-                    {row.applicationUrl ? (
-                      <a
-                        href={row.applicationUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Open job
-                      </a>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td>{formatDate(row.datePosted)}</td>
-                  <td>{formatDate(row.applicationDate)}</td>
-                  <td>{formatDate(row.followUpDate)}</td>
-                  <td>{row.resumeVersion ?? "—"}</td>
-                  <td>
-                    {row.coverLetterNeeded === null
-                      ? "—"
-                      : row.coverLetterNeeded
-                        ? "Yes"
-                        : "No"}
-                  </td>
-                  <td>{row.source ?? "—"}</td>
-                  <td>
-                    <div className="application-table__actions">
-                      {hasApplication ? (
-                        <>
-                          <button
-                            type="button"
-                            aria-label={`Edit application for ${row.positionTitle}`}
-                            onClick={() => onEdit(row)}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            aria-label={`Delete application for ${row.positionTitle}`}
-                            disabled={
-                              deletingId === row.applicationId
-                            }
-                            onClick={() => void onDelete(row)}
-                          >
-                            {deletingId === row.applicationId
-                              ? "Deleting..."
-                              : "Delete"}
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            aria-label={`Edit job for ${row.positionTitle}`}
-                            onClick={() => onEdit(row)}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            aria-label={`Add application for ${row.positionTitle}`}
-                            onClick={() =>
-                              onAddApplication(row.jobOpportunityId)
-                            }
-                          >
-                            Add application
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
+export default function ApplicationList({rows,deletingId,onEdit,onDelete,onAddApplication,onMarkApplied}:Props){
+ const initial=useMemo(()=>Object.fromEntries(rows.filter(r=>r.applicationId!==null).map(r=>[r.applicationId!,r.automationState??"NOT_APPROVED"])),[rows]);
+ const [states,setStates]=useState<Record<number,AutomationState>>(initial);const [busy,setBusy]=useState<Set<number>>(new Set());const [error,setError]=useState("");const [message,setMessage]=useState("");
+ const eligible=rows.filter(r=>r.applicationId!==null&&!locked(r)&&(states[r.applicationId!]??r.automationState??"NOT_APPROVED")==="NOT_APPROVED");
+ async function toggle(id:number,approve:boolean){setBusy(c=>new Set(c).add(id));setError("");setMessage("");try{const result=await automationAction(id,approve?"approve-prep":"revoke");setStates(c=>({...c,[id]:result.state}));setMessage(`Preparation permission updated: ${automationLabels[result.state]}.`);}catch(caught){setError(caught instanceof Error?caught.message:"Preparation permission could not be updated.");}finally{setBusy(c=>{const next=new Set(c);next.delete(id);return next;});}}
+ async function approveVisible(){const ids=eligible.map(r=>r.applicationId!);if(!ids.length)return;setBusy(new Set(ids));setError("");setMessage("");const results=await Promise.allSettled(ids.map(id=>automationAction(id,"approve-prep")));const updates:Record<number,AutomationState>={};const failures:string[]=[];results.forEach((result,index)=>{if(result.status==="fulfilled")updates[ids[index]]=result.value.state;else failures.push(result.reason instanceof Error?result.reason.message:`Application ${ids[index]} could not be approved.`);});setStates(c=>({...c,...updates}));setBusy(new Set());const count=Object.keys(updates).length;if(count)setMessage(`${count} visible application${count===1?"":"s"} approved for preparation.`);if(failures.length)setError(`${failures.length} application${failures.length===1?"":"s"} could not be approved: ${failures.join(" ")}`);}
+ if(!rows.length)return <p>No tracked jobs found.</p>;
+ return <section aria-labelledby="application-list-heading">
+  <div className="application-list__heading"><h2 id="application-list-heading">Applications</h2><button type="button" disabled={!eligible.length||busy.size>0} onClick={()=>void approveVisible()}>{busy.size>1?"Approving visible…":"Approve all eligible visible"}</button></div>
+  {error&&<p role="alert">{error}</p>}{message&&<p role="status">{message}</p>}
+  <div className="application-table-container"><table className="application-table"><thead><tr><th scope="col">Prepare</th><th scope="col">Company</th><th scope="col">Position</th><th scope="col">Work Arrangement</th><th scope="col">Latest Status</th><th scope="col">Status Date</th><th scope="col">Actions</th></tr></thead>
+  <tbody>{rows.map(row=>{const hasApp=row.applicationId!==null;const state=hasApp?states[row.applicationId!]??row.automationState??"NOT_APPROVED":null;const isLocked=locked(row);const saving=hasApp&&busy.has(row.applicationId!);return <tr key={row.jobOpportunityId}>
+   <td className="application-table__prepare">{hasApp?<><label title={isLocked?`${lockLabels[row.lockState!]} applications cannot be prepared`:automationLabels[state!]}><input type="checkbox" aria-label={`Approve ${row.positionTitle} for preparation`} checked={state!=="NOT_APPROVED"} disabled={saving||isLocked} onChange={event=>void toggle(row.applicationId!,event.target.checked)}/><span>{saving?"Saving…":automationLabels[state!]}</span></label><span className={`application-lock-badge application-lock-badge--${(row.lockState??"NOT_SUBMITTED").toLowerCase()}`}>{lockLabels[row.lockState??"NOT_SUBMITTED"]}</span></>:<span>Application required</span>}</td>
+   <td className="application-table__truncate" title={row.companyName??"Unknown company"}>{row.companyName??"—"}</td><th scope="row" className="application-table__truncate" title={row.positionTitle}>{row.applicationUrl?<a href={row.applicationUrl} target="_blank" rel="noopener noreferrer">{row.positionTitle}</a>:row.positionTitle}</th><td>{remoteLabels[row.remoteType]}</td><td>{row.status?statusLabels[row.status]:"Added"}</td><td>{formatDate(row.statusDate)}</td>
+   <td><div className="application-table__actions"><button type="button" aria-label={`Edit ${hasApp?"application":"job"} for ${row.positionTitle}`} onClick={()=>onEdit(row)}>Edit</button>{hasApp&&row.lockState==="NOT_SUBMITTED"&&(row.status==="SAVED"||row.status==="PREPARING")&&<button type="button" className="application-table__compact-action" aria-label={`Mark ${row.positionTitle} as applied`} onClick={()=>onMarkApplied(row)}>Mark Applied</button>}{hasApp?<button type="button" aria-label={`Delete application for ${row.positionTitle}`} disabled={deletingId===row.applicationId} onClick={()=>void onDelete(row)}>{deletingId===row.applicationId?"Deleting…":"Delete"}</button>:<button type="button" aria-label={`Add application for ${row.positionTitle}`} onClick={()=>onAddApplication(row.jobOpportunityId)}>Add application</button>}</div></td>
+  </tr>})}</tbody></table></div>
+ </section>;
 }

@@ -16,6 +16,7 @@ export interface ApplicantProfile {
   githubUrl: string | null;
   linkedinUrl: string | null;
   defaultResumeVersion: string | null;
+  defaultResumeMaterialId?: number | null;
   preferredWorkArrangement: RemoteType;
   minimumSalary: number | null;
   salaryCurrency: string;

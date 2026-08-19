@@ -11,6 +11,7 @@ import type {
   ApplicationStatus,
 } from "../types/application";
 import { emptyApplicationInput } from "../types/applicationFormDefaults";
+import type { CareerMaterial } from "../../profile/types/careerMaterial";
 
 interface ApplicationFormProps {
   heading: string;
@@ -26,6 +27,8 @@ interface ApplicationFormProps {
     | "jobOpportunityId"
     | "followUpDate"
     | "interviewTopics";
+  resumeMaterials?: CareerMaterial[];
+  resumeSelectionDisabled?: boolean;
 }
 
 function toApiDateTime(value: string): string {
@@ -45,6 +48,8 @@ export default function ApplicationForm({
   onSubmit,
   onCancel,
   initialFocusField,
+  resumeMaterials = [],
+  resumeSelectionDisabled = false,
 }: ApplicationFormProps) {
   const [form, setForm] =
     useState<ApplicationInput>(initialValues);
@@ -124,10 +129,11 @@ export default function ApplicationForm({
   const statuses: {
     value: ApplicationStatus;
     label: string;
+    disabled?: boolean;
   }[] = [
     { value: "SAVED", label: "Saved" },
     { value: "PREPARING", label: "Preparing" },
-    { value: "APPLIED", label: "Applied" },
+    { value: "APPLIED", label: form.status === "APPLIED" ? "Applied" : "Applied (use Mark as Applied)", disabled: form.status !== "APPLIED" },
     { value: "PHONE_SCREEN", label: "Phone Screen" },
     { value: "INTERVIEW_ONE", label: "Interview 1" },
     { value: "INTERVIEW_TWO", label: "Interview 2" },
@@ -178,6 +184,7 @@ export default function ApplicationForm({
               <option
                 key={status.value}
                 value={status.value}
+                disabled={status.disabled}
               >
                 {status.label}
               </option>
@@ -188,29 +195,18 @@ export default function ApplicationForm({
         <label>
           Résumé version
           <select
-            name="resumeVersion"
-            value={form.resumeVersion}
-            onChange={handleTextChange}
+            name="resumeMaterialId"
+            value={form.resumeMaterialId ?? ""}
+            onChange={(event) => setForm((current) => ({...current,
+              resumeMaterialId:event.target.value?Number(event.target.value):null}))}
+            disabled={resumeSelectionDisabled}
           >
-            <option value="">Select résumé</option>
-
-            <option value="Software Engineering">
-              Software Engineering
-            </option>
-
-            <option value="Technical Support">
-              Technical Support
-            </option>
-
-            <option value="Administrative">
-              Administrative
-            </option>
-
-            <option value="Education / Medical Education">
-              Education / Medical Education
-            </option>
+            <option value="">No uploaded résumé selected</option>
+            {resumeMaterials.filter(material=>material.active||material.id===form.resumeMaterialId).map(material=><option key={material.id} value={material.id}>{material.displayName}{material.targetJobFamily?` — ${material.targetJobFamily}`:""}{!material.active?" (archived)":""}</option>)}
           </select>
         </label>
+
+        {form.resumeVersion && !form.resumeMaterialId && <p className="field-help">Legacy résumé label: {form.resumeVersion}. Upload and select a real résumé material when ready.</p>}
 
         <label className="checkbox-field">
           <input

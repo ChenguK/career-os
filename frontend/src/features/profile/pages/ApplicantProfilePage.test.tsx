@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import ApplicantProfilePage from "./ApplicantProfilePage";
@@ -9,12 +10,14 @@ import {
   verifyApplicantProfile,
 } from "../api/applicantProfileApi";
 import type { ApplicantProfile } from "../types/applicantProfile";
+import { getCareerMaterials } from "../api/careerMaterialsApi";
 
 vi.mock("../api/applicantProfileApi", () => ({
   getApplicantProfile: vi.fn(),
   saveApplicantProfile: vi.fn(),
   verifyApplicantProfile: vi.fn(),
 }));
+vi.mock("../api/careerMaterialsApi",()=>({getCareerMaterials:vi.fn(),uploadCareerMaterial:vi.fn(),setDefaultCareerMaterial:vi.fn(),deactivateCareerMaterial:vi.fn(),deleteCareerMaterial:vi.fn(),careerMaterialDownloadUrl:(id:number)=>`/api/applicant-profile/materials/${id}/download`}));
 
 const emptyProfile: ApplicantProfile = {
   exists: false, id: null, firstName: null, lastName: null,
@@ -51,9 +54,11 @@ const savedProfile: ApplicantProfile = {
 };
 
 describe("ApplicantProfilePage", () => {
+  const renderPage = () => render(<MemoryRouter><ApplicantProfilePage /></MemoryRouter>);
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getApplicantProfile).mockResolvedValue(savedProfile);
+    vi.mocked(getCareerMaterials).mockResolvedValue([]);
     vi.mocked(saveApplicantProfile).mockResolvedValue(savedProfile);
     vi.mocked(verifyApplicantProfile).mockResolvedValue({
       ...savedProfile,
@@ -64,7 +69,7 @@ describe("ApplicantProfilePage", () => {
   });
 
   it("shows loading and then populates all profile sections", async () => {
-    render(<ApplicantProfilePage />);
+    renderPage();
     expect(screen.getByText("Loading applicant profile...")).toBeInTheDocument();
 
     expect(await screen.findByRole("heading", { name: "Applicant Profile" }))
@@ -77,12 +82,13 @@ describe("ApplicantProfilePage", () => {
     expect(screen.getByLabelText("Preferred work arrangement"))
       .toHaveValue("REMOTE");
     expect(screen.getByLabelText("Willing to relocate")).toHaveValue("true");
+    expect(screen.getByText("0 Career Materials")).toBeInTheDocument();
   });
 
   it("supports the empty state and creates the first profile", async () => {
     vi.mocked(getApplicantProfile).mockResolvedValue(emptyProfile);
     const user = userEvent.setup();
-    render(<ApplicantProfilePage />);
+    renderPage();
     expect(await screen.findByText("No applicant profile has been saved yet."))
       .toBeInTheDocument();
 
@@ -101,7 +107,7 @@ describe("ApplicantProfilePage", () => {
   it("uses browser validation for required identity fields", async () => {
     vi.mocked(getApplicantProfile).mockResolvedValue(emptyProfile);
     const user = userEvent.setup();
-    render(<ApplicantProfilePage />);
+    renderPage();
     await screen.findByText("No applicant profile has been saved yet.");
 
     await user.click(screen.getByRole("button", { name: "Save profile" }));
@@ -112,7 +118,7 @@ describe("ApplicantProfilePage", () => {
 
   it("marks only the current saved profile verified through explicit action", async () => {
     const user = userEvent.setup();
-    render(<ApplicantProfilePage />);
+    renderPage();
     await screen.findByLabelText("First name");
 
     await user.click(screen.getByRole("button", {
@@ -127,7 +133,7 @@ describe("ApplicantProfilePage", () => {
     vi.mocked(getApplicantProfile).mockRejectedValueOnce(
       new Error("Profile service unavailable"),
     );
-    const { unmount } = render(<ApplicantProfilePage />);
+    const { unmount } = renderPage();
     expect(await screen.findByRole("alert"))
       .toHaveTextContent("Profile service unavailable");
     unmount();
@@ -137,10 +143,42 @@ describe("ApplicantProfilePage", () => {
       new Error("Profile could not be saved"),
     );
     const user = userEvent.setup();
-    render(<ApplicantProfilePage />);
+    renderPage();
     await screen.findByLabelText("First name");
     await user.click(screen.getByRole("button", { name: "Save profile" }));
     await waitFor(() => expect(screen.getByRole("alert"))
       .toHaveTextContent("Profile could not be saved"));
+  });
+
+  it("shows all five materials without overflow at the profile limit", async () => {
+    vi.mocked(getCareerMaterials).mockResolvedValue(Array.from({ length: 5 }, (_, index) => ({
+      id: index + 1, applicantProfileId: 1, materialType: "RESUME",
+      displayName: `Resume ${index + 1}`, originalFilename: `resume-${index + 1}.pdf`,
+      mimeType: "application/pdf", fileSize: 1024, active: true, notes: null,
+      targetJobFamily: null, targetSeniority: null, versionLabel: null,
+      profileDefault: index === 0, createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-01T00:00:00Z",
+    })));
+    renderPage();
+    expect(await screen.findByText("5 Career Materials")).toBeInTheDocument();
+    expect(screen.getByText("Resume 5")).toBeInTheDocument();
+    expect(screen.queryByText(/Showing 5 of/)).not.toBeInTheDocument();
+  });
+
+  it("caps a crowded profile summary and links to full management", async () => {
+    vi.mocked(getCareerMaterials).mockResolvedValue(Array.from({ length: 6 }, (_, index) => ({
+      id: index + 1, applicantProfileId: 1, materialType: "RESUME",
+      displayName: `Resume ${index + 1}`, originalFilename: `resume-${index + 1}.pdf`,
+      mimeType: "application/pdf", fileSize: 1024, active: index < 5, notes: null,
+      targetJobFamily: null, targetSeniority: null, versionLabel: null,
+      profileDefault: false, createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-01T00:00:00Z",
+    })));
+    renderPage();
+    expect(await screen.findByText("6 Career Materials")).toBeInTheDocument();
+    expect(screen.getByText("Showing 5 of 6.")).toBeInTheDocument();
+    expect(screen.queryByText("Resume 6")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View all materials" })).toHaveAttribute("href", "/materials");
+    expect(screen.getByRole("link", { name: "Manage Materials" })).toHaveAttribute("href", "/materials");
   });
 });

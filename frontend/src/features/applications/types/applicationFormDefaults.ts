@@ -4,6 +4,7 @@ export const emptyApplicationInput: ApplicationInput = {
   jobOpportunityId: null,
   status: "SAVED",
   resumeVersion: "",
+  resumeMaterialId: null,
   coverLetterNeeded: false,
   portfolioLink: "",
   githubLink: "",

@@ -11,6 +11,7 @@ import ApplicationsPage from "./features/applications/pages/ApplicationsPage";
 import CompaniesPage from "./features/companies/pages/CompaniesPage";
 import JobsPage from "./features/jobs/pages/JobsPage";
 import ApplicantProfilePage from "./features/profile/pages/ApplicantProfilePage";
+import CareerMaterialsPage from "./features/profile/pages/CareerMaterialsPage";
 import ApprovedAnswersPage from "./features/answers/pages/ApprovedAnswersPage";
 import QuestionsPage from "./features/questions/QuestionsPage";
 
@@ -51,6 +52,11 @@ export default function App() {
         <Route
           path="profile"
           element={<ApplicantProfilePage />}
+        />
+
+        <Route
+          path="materials"
+          element={<CareerMaterialsPage />}
         />
 
         <Route

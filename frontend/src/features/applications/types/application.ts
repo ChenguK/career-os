@@ -18,6 +18,9 @@ export interface Application {
   companyName: string | null;
   status: ApplicationStatus;
   resumeVersion: string | null;
+  resumeMaterialId?: number | null;
+  resumeMaterialDisplayName?: string | null;
+  resumeMaterialActive?: boolean;
   coverLetterNeeded: boolean;
   portfolioLink: string | null;
   githubLink: string | null;
@@ -42,6 +45,7 @@ export interface ApplicationInput {
   jobOpportunityId: number | null;
   status: ApplicationStatus;
   resumeVersion: string;
+  resumeMaterialId?: number | null;
   coverLetterNeeded: boolean;
   portfolioLink: string;
   githubLink: string;

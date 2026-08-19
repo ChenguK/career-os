@@ -27,6 +27,9 @@ export interface ApplicationTrackerRow {
   applicationId: number | null;
   status: ApplicationStatus | null;
   resumeVersion: string | null;
+  resumeMaterialId?: number | null;
+  resumeMaterialDisplayName?: string | null;
+  resumeMaterialActive?: boolean | null;
   coverLetterNeeded: boolean | null;
   portfolioLink: string | null;
   githubLink: string | null;
@@ -45,6 +48,10 @@ export interface ApplicationTrackerRow {
   applicationNotes: string | null;
   applicationCreatedAt: string | null;
   applicationUpdatedAt: string | null;
+  automationState?: "NOT_APPROVED" | "APPROVED_FOR_PREP" | "NEEDS_ANSWERS" |
+    "READY_FOR_REVIEW" | "APPROVED_TO_SUBMIT" | "BLOCKED" | null;
+  statusDate?: string | null;
+  lockState?: "NOT_SUBMITTED" | "SUBMITTED" | "ARCHIVED" | "TESTING" | null;
 }
 
 export type ApplicationTrackerSort =
